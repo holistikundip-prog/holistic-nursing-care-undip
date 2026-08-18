@@ -1,126 +1,123 @@
-// Google Gmail API Integration Service
-
 const CLIENT_ID = '502787877148-vk6hfg5tquc3tnsvhkf3de11v0as9e97.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly';
 
-let tokenClient: any = null;
-let accessToken: string | null = null;
-
-// Initialize Google OAuth Token Client
-export function initGmailClient(onSuccess?: () => void, onError?: (err: any) => void) {
-  if (typeof window === 'undefined') return;
-
-  // Load Google Identity Services script dynamically if not present
-  if (!(window as any).google?.accounts?.oauth2) {
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => setupTokenClient(onSuccess, onError);
-    document.body.appendChild(script);
-  } else {
-    setupTokenClient(onSuccess, onError);
-  }
+export interface GmailMessageSummary {
+  id: string;
+  threadId?: string;
+  snippet?: string;
+  subject?: string;
+  from?: string;
+  to?: string;
+  date?: string;
 }
 
-function setupTokenClient(onSuccess?: () => void, onError?: (err: any) => void) {
-  try {
-    tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
-      scope: SCOPES,
-      callback: (response: any) => {
-        if (response.error) {
-          console.error('Google Auth Error:', response);
-          if (onError) onError(response);
-          return;
-        }
-        accessToken = response.access_token;
-        localStorage.setItem('gmail_access_token', response.access_token);
-        if (onSuccess) onSuccess();
-      },
-    });
-  } catch (err) {
-    console.error('Failed to init token client:', err);
-    if (onError) onError(err);
-  }
+export function isGmailConnected(): boolean {
+  return !!localStorage.getItem('gmail_access_token');
 }
 
-// Request Token / Authenticate
 export function connectGmail(): Promise<string> {
   return new Promise((resolve, reject) => {
-    const savedToken = localStorage.getItem('gmail_access_token');
-    if (savedToken) {
-      accessToken = savedToken;
-      return resolve(savedToken);
-    }
+    const loadGIS = () => {
+      const globalWin = window as any;
+      if (!globalWin.google?.accounts?.oauth2) {
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.onload = () => triggerAuth();
+        script.onerror = () => reject(new Error('Gagal memuat Google SDK'));
+        document.body.appendChild(script);
+      } else {
+        triggerAuth();
+      }
+    };
 
-    if (!tokenClient) {
-      setupTokenClient(
-        () => resolve(accessToken || ''),
-        (err) => reject(err)
-      );
-    }
+    const triggerAuth = () => {
+      try {
+        const globalWin = window as any;
+        const client = globalWin.google.accounts.oauth2.initTokenClient({
+          client_id: CLIENT_ID,
+          scope: SCOPES,
+          callback: (response: any) => {
+            if (response.error) {
+              reject(new Error(response.error_description || response.error));
+              return;
+            }
+            if (response.access_token) {
+              localStorage.setItem('gmail_access_token', response.access_token);
+              resolve(response.access_token);
+            } else {
+              reject(new Error('Token tidak ditemukan dari Google.'));
+            }
+          },
+        });
+        client.requestAccessToken();
+      } catch (err) {
+        reject(err);
+      }
+    };
 
-    if (tokenClient) {
-      tokenClient.requestAccessToken({ prompt: 'consent' });
-    } else {
-      reject(new Error('Google Identity Client tidak siap. Silakan coba beberapa saat lagi.'));
-    }
+    loadGIS();
   });
 }
 
-// Check if currently connected
-export function isGmailConnected(): boolean {
-  return Boolean(accessToken || localStorage.getItem('gmail_access_token'));
-}
+export async function sendGmailMessage(
+  token: string,
+  data: { to: string; subject: string; htmlBody: string; textBody: string }
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    const utf8Subject = `=?utf-8?B?${btoa(unescape(encodeURIComponent(data.subject)))}?=`;
+    const messageParts = [
+      `To: ${data.to}`,
+      'Content-Type: text/html; charset=utf-8',
+      'MIME-Version: 1.0',
+      `Subject: ${utf8Subject}`,
+      '',
+      data.htmlBody
+    ];
 
-// Disconnect
-export function disconnectGmail() {
-  accessToken = null;
-  localStorage.removeItem('gmail_access_token');
-}
+    const rawMessage = messageParts.join('\r\n');
+    const encodedMessage = btoa(unescape(encodeURIComponent(rawMessage)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
 
-// Send Email via Gmail REST API
-export async function sendGmailMessage(to: string, subject: string, bodyText: string): Promise<any> {
-  const token = accessToken || localStorage.getItem('gmail_access_token');
-  if (!token) {
-    throw new Error('Akun Gmail belum terhubung. Silakan hubungkan akun terlebih dahulu.');
-  }
+    const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ raw: encodedMessage })
+    });
 
-  // Construct MIME Message
-  const utf8Subject = `=?utf-8?B?${btoa(unescape(encodeURIComponent(subject)))}?=`;
-  const messageParts = [
-    `To: ${to}`,
-    'Content-Type: text/html; charset=utf-8',
-    'MIME-Version: 1.0',
-    `Subject: ${utf8Subject}`,
-    '',
-    bodyText.replace(/\n/g, '<br/>')
-  ];
-  
-  const rawMessage = messageParts.join('\r\n');
-  const encodedMessage = btoa(unescape(encodeURIComponent(rawMessage)))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-
-  const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ raw: encodedMessage })
-  });
-
-  if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    if (response.status === 401) {
-      disconnectGmail();
-      throw new Error('Sesi Gmail telah kadaluarsa. Silakan klik "Hubungkan" kembali.');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return { success: false, error: err.error?.message || 'Gagal mengirim email.' };
     }
-    throw new Error(errData.error?.message || 'Gagal mengirim email via Gmail API.');
-  }
 
-  return response.json();
+    const result = await res.json();
+    return { success: true, messageId: result.id };
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Terjadi kesalahan jaringan.' };
+  }
+}
+
+export async function listGmailMessages(
+  token: string,
+  query: string = '',
+  maxResults: number = 8
+): Promise<GmailMessageSummary[]> {
+  try {
+    const res = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`,
+      {
+        headers: { Authorization: `Bearer ${token}` }
+      }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.messages || [];
+  } catch {
+    return [];
+  }
 }
