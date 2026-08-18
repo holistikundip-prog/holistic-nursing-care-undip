@@ -1,4 +1,6 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 @layer base {
   body {
@@ -28,4 +30,3 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
-
