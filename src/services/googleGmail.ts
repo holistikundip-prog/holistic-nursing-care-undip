@@ -1,3 +1,5 @@
+// src/services/googleGmail.ts
+
 const CLIENT_ID = '502787877148-vk6hfg5tquc3tnsvhkf3de11v0as9e97.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly';
 
@@ -12,19 +14,40 @@ export interface GmailMessageSummary {
 }
 
 export function isGmailConnected(): boolean {
+  if (typeof window === 'undefined') return false;
   return !!localStorage.getItem('gmail_access_token');
+}
+
+// Mengubah String UTF-8 menjadi Base64 URL Safe tanpa unescape()
+function utf8ToBase64Url(str: string): string {
+  const encoder = new TextEncoder();
+  const uint8Array = encoder.encode(str);
+  let binary = '';
+  for (let i = 0; i < uint8Array.length; i++) {
+    binary += String.fromCharCode(uint8Array[i]);
+  }
+  const base64 = typeof btoa !== 'undefined' ? btoa(binary) : Buffer.from(binary, 'binary').toString('base64');
+  return base64
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }
 
 export function connectGmail(): Promise<string> {
   return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined') {
+      reject(new Error('Window Object Tidak Ditemukan.'));
+      return;
+    }
+
     const loadGIS = () => {
-      const globalWin = window as any;
-      if (!globalWin.google?.accounts?.oauth2) {
+      const win = window as any;
+      if (!win.google?.accounts?.oauth2) {
         const script = document.createElement('script');
         script.src = 'https://accounts.google.com/gsi/client';
         script.async = true;
         script.onload = () => triggerAuth();
-        script.onerror = () => reject(new Error('Gagal memuat Google SDK'));
+        script.onerror = () => reject(new Error('Gagal memuat Google OAuth SDK'));
         document.body.appendChild(script);
       } else {
         triggerAuth();
@@ -33,8 +56,8 @@ export function connectGmail(): Promise<string> {
 
     const triggerAuth = () => {
       try {
-        const globalWin = window as any;
-        const client = globalWin.google.accounts.oauth2.initTokenClient({
+        const win = window as any;
+        const client = win.google.accounts.oauth2.initTokenClient({
           client_id: CLIENT_ID,
           scope: SCOPES,
           callback: (response: any) => {
@@ -46,12 +69,12 @@ export function connectGmail(): Promise<string> {
               localStorage.setItem('gmail_access_token', response.access_token);
               resolve(response.access_token);
             } else {
-              reject(new Error('Token tidak ditemukan dari Google.'));
+              reject(new Error('Token OAuth tidak dikembalikan oleh Google.'));
             }
           },
         });
         client.requestAccessToken();
-      } catch (err) {
+      } catch (err: any) {
         reject(err);
       }
     };
@@ -65,21 +88,16 @@ export async function sendGmailMessage(
   data: { to: string; subject: string; htmlBody: string; textBody: string }
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    const utf8Subject = `=?utf-8?B?${btoa(unescape(encodeURIComponent(data.subject)))}?=`;
-    const messageParts = [
+    const rawContent = [
       `To: ${data.to}`,
       'Content-Type: text/html; charset=utf-8',
       'MIME-Version: 1.0',
-      `Subject: ${utf8Subject}`,
+      `Subject: ${data.subject}`,
       '',
       data.htmlBody
-    ];
+    ].join('\r\n');
 
-    const rawMessage = messageParts.join('\r\n');
-    const encodedMessage = btoa(unescape(encodeURIComponent(rawMessage)))
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '');
+    const encodedMessage = utf8ToBase64Url(rawContent);
 
     const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
       method: 'POST',
@@ -91,14 +109,17 @@ export async function sendGmailMessage(
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return { success: false, error: err.error?.message || 'Gagal mengirim email.' };
+      const errData = await res.json().catch(() => ({}));
+      return { 
+        success: false, 
+        error: errData.error?.message || `Error status ${res.status}: Gagal mengirim via Gmail API.` 
+      };
     }
 
     const result = await res.json();
     return { success: true, messageId: result.id };
   } catch (e: any) {
-    return { success: false, error: e?.message || 'Terjadi kesalahan jaringan.' };
+    return { success: false, error: e?.message || 'Terjadi kesalahan jaringan saat menghubungi server Gmail.' };
   }
 }
 
