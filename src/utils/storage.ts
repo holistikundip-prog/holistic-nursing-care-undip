@@ -155,6 +155,9 @@ export const getStoredUser = (): UserProfile => {
 export const saveUser = (user: UserProfile) => {
   try {
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+    if (!user.isGuest) {
+      saveRegisteredPatient(user);
+    }
   } catch (e) {
     console.error('Failed to save user', e);
   }

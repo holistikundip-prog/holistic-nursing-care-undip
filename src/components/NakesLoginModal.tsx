@@ -8,11 +8,9 @@ import {
   AlertCircle,
   X,
   ShieldCheck,
-  CheckCircle2,
-  ExternalLink,
-  WifiOff
+  CheckCircle2
 } from 'lucide-react';
-import { googleSignIn, getFriendlyErrorMessage } from '../services/firebaseAuth';
+import { googleSignIn } from '../services/firebaseAuth';
 
 interface NakesLoginModalProps {
   isOpen: boolean;
@@ -49,7 +47,6 @@ export const NakesLoginModal: React.FC<NakesLoginModalProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [isPopupBlocked, setIsPopupBlocked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
@@ -57,7 +54,6 @@ export const NakesLoginModal: React.FC<NakesLoginModalProps> = ({
 
   const handleGoogleLogin = async () => {
     setErrorMessage('');
-    setIsPopupBlocked(false);
     setIsGoogleLoading(true);
     try {
       const result = await googleSignIn();
@@ -74,13 +70,11 @@ export const NakesLoginModal: React.FC<NakesLoginModalProps> = ({
     } catch (err: any) {
       console.error('Nakes Google login error:', err);
       setIsGoogleLoading(false);
-      const code = err?.code || '';
-      if (code === 'auth/popup-blocked') {
-        setIsPopupBlocked(true);
-        setErrorMessage('Jendela pop-up login Google diblokir oleh browser. Silakan buka aplikasi di tab baru atau izinkan pop-up.');
-      } else {
-        setErrorMessage(getFriendlyErrorMessage(err, 'Gagal login dengan Google. Pastikan izin akses telah diberikan.'));
-      }
+      setErrorMessage(
+        err?.message?.includes('popup-closed')
+          ? 'Jendela login Google ditutup sebelum selesai.'
+          : 'Gagal login dengan Google. Pastikan izin akses telah diberikan.'
+      );
     }
   };
 
@@ -209,42 +203,9 @@ export const NakesLoginModal: React.FC<NakesLoginModalProps> = ({
           {/* Form Body */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {errorMessage && (
-              <div className={`p-3.5 rounded-2xl text-xs space-y-2 animate-shake border ${
-                errorMessage.includes('Koneksi internet atau server sedang bermasalah')
-                  ? 'bg-amber-50/90 border-amber-300 text-amber-900 shadow-xs'
-                  : 'bg-rose-50 border-rose-200 text-rose-800'
-              }`}>
-                <div className="flex items-start gap-2.5">
-                  {errorMessage.includes('Koneksi internet atau server sedang bermasalah') ? (
-                    <WifiOff className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  )}
-                  <div className="flex-1 font-medium leading-relaxed">{errorMessage}</div>
-                </div>
-                {isPopupBlocked && (
-                  <div className="pt-1 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => window.open(window.location.href, '_blank')}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-900 text-white rounded-lg font-bold text-[11px] hover:bg-stone-800 transition cursor-pointer"
-                    >
-                      <span>Buka di Tab Baru</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-                {errorMessage.includes('Koneksi internet atau server sedang bermasalah') && (
-                  <div className="pt-1 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setErrorMessage('')}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-900 text-white rounded-lg font-bold text-[11px] hover:bg-amber-800 transition cursor-pointer"
-                    >
-                      <span>Tutup Peringatan</span>
-                    </button>
-                  </div>
-                )}
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 text-xs flex items-start gap-2 animate-shake">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span>{errorMessage}</span>
               </div>
             )}
 

@@ -24,7 +24,6 @@ import {
 import { Appointment, Therapy, Video as VideoType, AppointmentStatus, UserProfile, ClinicalProgressNote } from '../types';
 import { formatIndonesianDate } from '../utils/storage';
 import { GoogleSheetsCard } from '../components/GoogleSheetsCard';
-import { GoogleWorkspaceHubCard } from '../components/GoogleWorkspaceHubCard';
 import { ClinicalProgressNotesManager } from '../components/ClinicalProgressNotesManager';
 
 interface AdminDashboardViewProps {
@@ -40,10 +39,8 @@ interface AdminDashboardViewProps {
   onUpdateAppointmentStatus: (id: string, newStatus: AppointmentStatus) => void;
   onDeleteAppointment: (id: string) => void;
   onAddTherapy: (therapy: Therapy) => void;
-  onUpdateTherapy?: (therapy: Therapy) => void;
   onDeleteTherapy: (id: string) => void;
   onAddVideo: (video: VideoType) => void;
-  onUpdateVideo?: (video: VideoType) => void;
   onDeleteVideo: (id: string) => void;
   onAddProgressNote: (note: ClinicalProgressNote) => void;
   onUpdateProgressNote: (note: ClinicalProgressNote) => void;
@@ -63,10 +60,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   onUpdateAppointmentStatus,
   onDeleteAppointment,
   onAddTherapy,
-  onUpdateTherapy,
   onDeleteTherapy,
   onAddVideo,
-  onUpdateVideo,
   onDeleteVideo,
   onAddProgressNote,
   onUpdateProgressNote,
@@ -272,8 +267,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Google Sheets Real-Time Sync Hub */}
-      <GoogleWorkspaceHubCard
+      {/* Google Sheets Integration Card */}
+      <GoogleSheetsCard
         googleUser={googleUser}
         accessToken={accessToken}
         onAuthSuccess={onGoogleAuthSuccess}
@@ -520,7 +515,6 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
           therapies={therapies}
           initialSelectedPatient={selectedPatientForProgressFilter}
           onClearInitialPatient={() => setSelectedPatientForProgressFilter('Semua')}
-          googleAccessToken={accessToken}
         />
       )}
 

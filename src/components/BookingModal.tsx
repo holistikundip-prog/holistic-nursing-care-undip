@@ -56,42 +56,51 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   onGoToMyAppointments,
   onRequestAuth
 }) => {
+  // Steps: 1. Terapi, 2. Lokasi, 3. Tanggal & Jam, 4. Data Pasien, 5. Ringkasan Konfirmasi, 6. Berhasil
   const [step, setStep] = useState<number>(1);
 
+  // Form selections
   const [selectedTherapyId, setSelectedTherapyId] = useState<string>('');
   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('');
   
+  // User form data
   const [patientName, setPatientName] = useState<string>('');
   const [patientNumber, setPatientNumber] = useState<string>('');
   const [patientPhone, setPatientPhone] = useState<string>('');
   const [patientEmail, setPatientEmail] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   
+  // Validation error state
   const [errorMessage, setErrorMessage] = useState<string>('');
+  
+  // Created appointment result
   const [createdAppointment, setCreatedAppointment] = useState<Appointment | null>(null);
 
+  // Initialize or reset when opened
   useEffect(() => {
     if (isOpen) {
       if (preSelectedTherapy) {
         setSelectedTherapyId(preSelectedTherapy.id);
-        setStep(2);
+        setStep(2); // If therapy was already chosen from detail, jump to Location
       } else {
         setSelectedTherapyId(therapies[0]?.id || '');
         setStep(1);
       }
       setSelectedLocationId(locations[0]?.id || 'undip-nursing');
       
+      // Default to tomorrow or next valid weekday
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      if (tomorrow.getDay() === 0) {
+      if (tomorrow.getDay() === 0) { // Sunday -> move to Monday
         tomorrow.setDate(tomorrow.getDate() + 1);
       }
       const dateStr = tomorrow.toISOString().split('T')[0];
       setSelectedDate(dateStr);
       setSelectedTimeSlot('09:00');
 
+      // Autofill user profile
       setPatientName(currentUser.name);
       setPatientNumber(currentUser.patientNumber);
       setPatientPhone(currentUser.phone);
@@ -104,6 +113,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   const allTimeSlots = useMemo(() => GENERATE_TIME_SLOTS(), []);
 
+  // Determine booked slots for current date & location
   const bookedSlots = useMemo(() => {
     if (!selectedDate || !selectedLocationId) return new Set<string>();
     const booked = new Set<string>();
@@ -118,16 +128,18 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const selectedTherapy = therapies.find(t => t.id === selectedTherapyId);
   const selectedLocation = locations.find(l => l.id === selectedLocationId);
 
+  // Check if selected date is Sunday
   const isSunday = useMemo(() => {
     if (!selectedDate) return false;
     const d = new Date(selectedDate + 'T00:00:00');
     return d.getDay() === 0;
   }, [selectedDate]);
 
+  // Check if selected date violates therapy allowed days (e.g. Tai Chi / Yoga on Friday & Saturday only)
   const selectedDayOfWeek = useMemo(() => {
     if (!selectedDate) return null;
     const d = new Date(selectedDate + 'T00:00:00');
-    return d.getDay();
+    return d.getDay(); // 0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday, 5 = Friday, 6 = Saturday
   }, [selectedDate]);
 
   const isInvalidDayForTherapy = useMemo(() => {
@@ -181,7 +193,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         setErrorMessage('Nomor telepon / WhatsApp wajib diisi.');
         return;
       }
-      setStep(5);
+      setStep(5); // Summary Confirmation
     }
   };
 
@@ -211,8 +223,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
     setCreatedAppointment(newAppointment);
     onBookingSuccess(newAppointment);
-    setStep(6);
+    setStep(6); // Success Step
 
+    // Jika token pengelola sudah ada di latar belakang, catat secara senyap tanpa mengganggu alur pasien
     const activeToken = accessToken || (typeof window !== 'undefined' ? localStorage.getItem('hnc_google_access_token') : null);
     if (activeToken) {
       appendAppointmentToSheet(activeToken, newAppointment).catch((err) => {
@@ -302,7 +315,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         {/* Modal Body Content */}
         <div className="p-5 sm:p-6 overflow-y-auto flex-1 text-sm text-stone-700 space-y-4">
           {errorMessage && (
-            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex items-start gap-2.5 text-rose-800 text-xs">
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex items-start gap-2.5 text-rose-800 text-xs animate-shake">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <span>{errorMessage}</span>
             </div>
@@ -410,7 +423,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
           )}
 
-          {/* STEP 3: Pilih Tanggal & Jam */}
+          {/* STEP 3: Pilih Tanggal & Jam (Senin-Sabtu, 08.00 - 19.30) */}
           {step === 3 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -422,20 +435,22 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 )}
               </div>
 
+              {/* Special Schedule Notice for Tai Chi / Yoga */}
               {selectedTherapy?.scheduleNote && (
-                <div className="bg-amber-50 border border-amber-300/80 rounded-2xl p-3.5 flex items-start gap-2.5 text-amber-950 text-xs">
+                <div className="bg-amber-50 border border-amber-300/80 rounded-2xl p-3.5 flex items-start gap-2.5 text-amber-950 text-xs shadow-xs">
                   <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <div>
                     <strong className="block font-bold text-amber-900">
                       Jadwal Operasional Terapi {selectedTherapy.name}:
                     </strong>
                     <span>
-                      Pelaksanaan sesi terapi <strong>{selectedTherapy.name}</strong> hanya tersedia pada hari <strong>Jumat dan Sabtu</strong>.
+                      Pelaksanaan sesi terapi <strong>{selectedTherapy.name}</strong> hanya tersedia pada hari <strong>Jumat dan Sabtu</strong>. Mohon pastikan tanggal tindakan yang Anda pilih jatuh pada hari Jumat atau Sabtu.
                     </span>
                   </div>
                 </div>
               )}
 
+              {/* Date Input */}
               <div className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-2">
                 <label className="text-xs font-bold text-stone-700 block">
                   {selectedTherapy?.allowedDays
@@ -475,7 +490,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 )}
 
                 {selectedDate && !isSunday && isInvalidDayForTherapy && selectedTherapy && (
-                  <p className="text-xs text-rose-600 font-medium">
+                  <p className="text-xs text-rose-600 font-medium flex items-center gap-1">
                     ⚠️ Hari <strong>{getIndonesianDayName(selectedDate)}</strong> tidak tersedia untuk sesi <strong>{selectedTherapy.name}</strong>. Silakan pilih hari <strong>Jumat</strong> atau <strong>Sabtu</strong>.
                   </p>
                 )}
@@ -490,11 +505,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 )}
               </div>
 
+              {/* Time Slots Grid (08:00 - 19:30 interval 30 mins) */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
                     <Clock className="w-4 h-4 text-emerald-700" />
-                    Pilih Jam Tindakan (08.00 – 19.30)
+                    Pilih Jam Tindakan (Interval 30 Menit, 08.00 – 19.30)
                   </label>
                   <span className="text-[11px] text-stone-500">
                     <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1"></span>Tersedia
@@ -521,7 +537,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                             ? 'bg-stone-200 text-stone-400 cursor-not-allowed line-through'
                             : isSelected
                             ? 'bg-emerald-700 text-white shadow-md ring-2 ring-emerald-500'
-                            : 'bg-white hover:bg-emerald-50 text-stone-800 border border-stone-200/80'
+                            : 'bg-white hover:bg-emerald-50 text-stone-800 border border-stone-200/80 hover:border-emerald-300'
                         }`}
                       >
                         {slot}
@@ -529,6 +545,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     );
                   })}
                 </div>
+                {selectedTimeSlot && !isSunday && (
+                  <p className="text-xs text-emerald-800 font-semibold mt-2 text-right">
+                    Jam terpilih: <span className="bg-emerald-100 px-2 py-0.5 rounded">{selectedTimeSlot} WIB</span>
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -539,7 +560,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <h3 className="font-bold text-stone-900 text-sm">Langkah 4: Lengkapi Data Pasien</h3>
 
               <div>
-                <label className="text-xs font-bold text-stone-700 block mb-1">Nama Lengkap Pasien *</label>
+                <label className="text-xs font-bold text-stone-700 block mb-1">
+                  Nama Lengkap Pasien *
+                </label>
                 <div className="relative">
                   <User className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
                   <input
@@ -547,24 +570,28 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     value={patientName}
                     onChange={(e) => setPatientName(e.target.value)}
                     placeholder="Contoh: Bpk. Hendra Pratama"
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-stone-700 block mb-1">Nomor Pasien / Rekam Medis (Jika Ada)</label>
+                <label className="text-xs font-bold text-stone-700 block mb-1">
+                  Nomor Pasien / Rekam Medis (Jika Ada)
+                </label>
                 <input
                   type="text"
                   value={patientNumber}
                   onChange={(e) => setPatientNumber(e.target.value)}
                   placeholder="Contoh: HNC-PASIEN-2026081"
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-bold text-stone-700 block mb-1">Nomor Telepon / WhatsApp Aktif *</label>
+                <label className="text-xs font-bold text-stone-700 block mb-1">
+                  Nomor Telepon / WhatsApp Aktif *
+                </label>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
                   <input
@@ -572,13 +599,15 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     value={patientPhone}
                     onChange={(e) => setPatientPhone(e.target.value)}
                     placeholder="0812-3456-7890"
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-stone-700 block mb-1">Email Pasien</label>
+                <label className="text-xs font-bold text-stone-700 block mb-1">
+                  Email Pasien (Untuk Notifikasi & Riwayat Akun)
+                </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
                   <input
@@ -586,28 +615,30 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     value={patientEmail}
                     onChange={(e) => setPatientEmail(e.target.value)}
                     placeholder="contoh: pasien@gmail.com"
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-stone-700 block mb-1">Catatan Tambahan / Keluhan Utama (Opsional)</label>
+                <label className="text-xs font-bold text-stone-700 block mb-1">
+                  Catatan Tambahan / Keluhan Utama (Opsional)
+                </label>
                 <div className="relative">
                   <FileText className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={2}
-                    placeholder="Tuliskan keluhan seperti leher kaku, kelelahan, dll..."
-                    className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                    placeholder="Tuliskan keluhan seperti leher kaku, kelelahan, atau preferensi lainnya..."
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white resize-none"
                   />
                 </div>
               </div>
             </div>
           )}
 
-          {/* STEP 5: Ringkasan / Konfirmasi */}
+          {/* STEP 5: Ringkasan / DETAIL JADWAL */}
           {step === 5 && (
             <div className="space-y-4">
               <div className="text-center pb-2">
@@ -617,6 +648,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 <h3 className="text-lg font-extrabold text-stone-900 mt-2">
                   DETAIL JADWAL TINDAKAN
                 </h3>
+                <p className="text-xs text-stone-500">
+                  Harap periksa kembali rincian jadwal sebelum konfirmasi.
+                </p>
               </div>
 
               <div className="bg-stone-50 rounded-2xl p-4 sm:p-5 border border-stone-200 space-y-3.5 text-xs sm:text-sm">
@@ -655,154 +689,140 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 {notes && (
                   <div className="flex justify-between pt-1">
                     <span className="text-stone-500">Catatan</span>
-                    <span className="font-medium text-stone-800 text-right italic max-w-[65%]">
-                      "{notes}"
-                    </span>
+                    <span className="text-stone-700 italic text-right max-w-[65%]">{notes}</span>
                   </div>
                 )}
               </div>
+
+              <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900">
+                💡 <strong>Informasi:</strong> Harap hadir 10 menit sebelum waktu tindakan untuk pemeriksaan tanda-tanda vital awal oleh perawat.
+              </div>
             </div>
           )}
 
-          {/* STEP 6: Berhasil Booking / e-Tiket */}
+          {/* STEP 6: Jadwal Berhasil Dibuat */}
           {step === 6 && createdAppointment && (
-            <div className="space-y-4 text-center py-2 animate-fadeIn">
+            <div className="text-center py-4 space-y-4 animate-fadeIn">
               <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-inner">
-                <CheckCircle2 className="w-9 h-9" />
+                <CheckCircle2 className="w-10 h-10" />
               </div>
-              
+
               <div>
-                <span className="text-[10px] font-extrabold uppercase tracking-widest bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full border border-emerald-200">
-                  Booking Berhasil Disimpan
-                </span>
-                <h3 className="text-lg font-black text-stone-900 mt-2">
-                  e-Tiket Tindakan Holistik
+                <h3 className="text-xl font-extrabold text-stone-900">
+                  Jadwal Berhasil Dibuat!
                 </h3>
+                <p className="text-xs text-emerald-800 font-medium mt-1">
+                  Permintaan jadwal Anda telah tercatat dalam sistem Holistic Nursing Care.
+                </p>
               </div>
 
-              {/* e-Ticket Card Simulator */}
-              <div className="bg-gradient-to-br from-emerald-900 to-stone-900 text-white rounded-2xl p-5 text-left relative overflow-hidden shadow-lg border border-emerald-700/50">
-                <div className="absolute -right-6 -bottom-6 opacity-10">
-                  <QrCode className="w-36 h-36" />
-                </div>
-
-                <div className="flex justify-between items-start border-b border-emerald-700/60 pb-3 mb-3 relative z-10">
+              {/* Booking Card */}
+              <div className="bg-gradient-to-br from-emerald-900 to-teal-950 text-white rounded-3xl p-5 shadow-xl text-left relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-xl pointer-events-none" />
+                <div className="flex justify-between items-start border-b border-emerald-800/80 pb-3 mb-3">
                   <div>
-                    <span className="text-[10px] text-emerald-300 uppercase font-semibold">Kode Booking</span>
-                    <h4 className="text-base font-black tracking-wider text-white">
+                    <span className="text-[10px] text-emerald-300 font-semibold tracking-wider uppercase">
+                      Kode Booking
+                    </span>
+                    <p className="text-xl font-black text-amber-300 tracking-wider">
                       {createdAppointment.bookingCode}
-                    </h4>
+                    </p>
                   </div>
-                  <span className="text-[10px] bg-emerald-700/80 text-emerald-100 font-bold px-2.5 py-1 rounded-lg border border-emerald-600">
-                    {createdAppointment.status}
-                  </span>
+                  <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-emerald-200">
+                    <QrCode className="w-6 h-6" />
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 text-xs relative z-10 mb-3">
+                <div className="grid grid-cols-2 gap-3 text-xs">
                   <div>
-                    <span className="text-emerald-300 text-[10px] block">Nama Pasien</span>
-                    <span className="font-bold text-white truncate block">{createdAppointment.userName}</span>
-                  </div>
-                  <div>
-                    <span className="text-emerald-300 text-[10px] block">No. Rekam Medis</span>
-                    <span className="font-bold text-white truncate block">{createdAppointment.patientNumber}</span>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-emerald-300 text-[10px] block">Jenis Terapi</span>
+                    <span className="text-emerald-300 text-[10px] block">Terapi</span>
                     <span className="font-bold text-white text-sm">{createdAppointment.therapyName}</span>
                   </div>
                   <div>
-                    <span className="text-emerald-300 text-[10px] block">Hari & Tanggal</span>
-                    <span className="font-semibold text-white">{createdAppointment.dayName}, {formatIndonesianDate(createdAppointment.date)}</span>
+                    <span className="text-emerald-300 text-[10px] block">Waktu</span>
+                    <span className="font-bold text-white text-sm">
+                      {createdAppointment.dayName}, {createdAppointment.timeSlot} WIB
+                    </span>
                   </div>
-                  <div>
-                    <span className="text-emerald-300 text-[10px] block">Waktu Sesi</span>
-                    <span className="font-extrabold text-emerald-200">{createdAppointment.timeSlot} WIB</span>
-                  </div>
-                  <div className="col-span-2 pt-1 border-t border-emerald-700/40">
-                    <span className="text-emerald-300 text-[10px] block">Lokasi Tindakan</span>
-                    <span className="font-semibold text-white">{createdAppointment.locationName}</span>
+                  <div className="col-span-2 pt-1">
+                    <span className="text-emerald-300 text-[10px] block">Lokasi</span>
+                    <span className="font-medium text-stone-200 text-xs">
+                      {createdAppointment.locationName}
+                    </span>
                   </div>
                 </div>
+              </div>
 
-                <div className="bg-white/10 rounded-xl p-2.5 text-[11px] text-emerald-100 flex items-center justify-between relative z-10">
-                  <span className="flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                    <span>Harap hadir 10 menit sebelum jadwal sesi dimulai.</span>
-                  </span>
-                </div>
+              {/* Action buttons */}
+              <div className="space-y-2 pt-2">
+                <button
+                  onClick={() => {
+                    onClose();
+                    onGoToMyAppointments();
+                  }}
+                  className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-3 px-4 rounded-xl text-sm transition cursor-pointer flex items-center justify-center gap-2 shadow-md"
+                >
+                  <CalendarCheck2 className="w-4 h-4" />
+                  <span>Buka Halaman Jadwal Saya</span>
+                </button>
+
+                <button
+                  onClick={onClose}
+                  className="w-full bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold py-2.5 px-4 rounded-xl text-xs transition cursor-pointer"
+                >
+                  Selesai & Kembali ke Beranda
+                </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* Footer Navigation */}
-        <div className="p-4 sm:p-5 border-t border-stone-100 bg-stone-50 flex items-center justify-between gap-3">
-          {step > 1 && step < 6 && (
-            <button
-              onClick={() => {
-                setStep(step - 1);
-                setErrorMessage('');
-              }}
-              className="px-4 py-2.5 rounded-xl border border-stone-300 hover:bg-stone-100 text-stone-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Kembali</span>
-            </button>
-          )}
-
-          {step === 1 && (
-            <button
-              onClick={onClose}
-              className="px-4 py-2.5 rounded-xl border border-stone-300 hover:bg-stone-100 text-stone-700 font-bold text-xs transition cursor-pointer"
-            >
-              Batal
-            </button>
-          )}
-
-          {step > 1 && step < 6 && <div></div>}
-
-          {step < 5 && (
-            <button
-              onClick={handleNextStep}
-              className="ml-auto bg-emerald-800 hover:bg-emerald-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <span>Lanjut</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          )}
-
-          {step === 5 && (
-            <button
-              onClick={handleConfirmBooking}
-              className="ml-auto bg-emerald-800 hover:bg-emerald-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl shadow-md flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <Check className="w-4 h-4 text-emerald-300" />
-              <span>Konfirmasi & Buat Booking</span>
-            </button>
-          )}
-
-          {step === 6 && (
-            <div className="flex w-full gap-2.5">
+        {/* Footer Navigation Buttons (Steps 1 to 5) */}
+        {step <= 5 && (
+          <div className="p-4 sm:p-5 border-t border-stone-100 bg-stone-50 rounded-b-3xl flex items-center justify-between gap-3">
+            {step > 1 ? (
               <button
+                type="button"
                 onClick={() => {
-                  onClose();
-                  onGoToMyAppointments();
+                  setErrorMessage('');
+                  setStep(step - 1);
                 }}
-                className="flex-1 bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold text-xs py-2.5 rounded-xl transition cursor-pointer flex items-center justify-center gap-1.5"
+                className="flex items-center gap-1.5 text-stone-600 hover:text-stone-900 text-xs sm:text-sm font-semibold px-3 py-2 rounded-xl transition cursor-pointer"
               >
-                <CalendarCheck2 className="w-4 h-4 text-emerald-800" />
-                <span>Lihat Janji Temu Saya</span>
+                <ArrowLeft className="w-4 h-4" />
+                <span>Kembali</span>
               </button>
+            ) : (
               <button
+                type="button"
                 onClick={onClose}
-                className="flex-1 bg-emerald-800 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-md transition cursor-pointer"
+                className="text-stone-500 hover:text-stone-700 text-xs sm:text-sm font-medium px-3 py-2"
               >
-                Tutup
+                Batal
               </button>
-            </div>
-          )}
-        </div>
+            )}
+
+            {step < 5 ? (
+              <button
+                type="button"
+                onClick={handleNextStep}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl shadow-md shadow-emerald-700/20 flex items-center gap-2 transition cursor-pointer"
+              >
+                <span>Lanjutkan</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleConfirmBooking}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-extrabold px-6 py-2.5 rounded-xl shadow-lg shadow-emerald-700/25 flex items-center gap-2 transition cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Konfirmasi Jadwal</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

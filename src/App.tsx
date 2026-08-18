@@ -24,16 +24,6 @@ import { AdminDashboardView } from './views/AdminDashboardView';
 
 import { ActiveTab, Therapy, Video, Appointment, UserProfile, AppointmentStatus, ClinicalProgressNote } from './types';
 import { initAuth, logoutGoogle, getAccessToken } from './services/firebaseAuth';
-import {
-  saveUserProfileToFirestore,
-  getUserProfileFromFirestore,
-  subscribeUserProfile,
-  saveAppointmentToFirestore,
-  subscribeAppointments,
-  saveProgressNoteToFirestore,
-  deleteProgressNoteFromFirestore,
-  subscribeProgressNotes
-} from './services/firebaseFirestore';
 import { appendAppointmentToSheet, triggerRealtimeSheetSync } from './services/googleSheets';
 import {
   getStoredAppointments,
@@ -51,8 +41,7 @@ import {
   clearUserSession,
   createGuestPatient,
   getStoredProgressNotes,
-  saveProgressNotes,
-  generatePatientNumber
+  saveProgressNotes
 } from './utils/storage';
 
 export default function App() {
@@ -100,7 +89,7 @@ export default function App() {
   };
 
   const handleNakesLoginSuccess = async () => {
-    // 1. Reset sesi pasien saat Nakes login
+    // 1. Otomatis bersihkan / reset sesi profil pasien yang sedang login saat Nakes aktif
     try {
       await logoutGoogle();
     } catch (e) {
@@ -148,29 +137,16 @@ export default function App() {
     setShowPatientAuthModal(true);
   };
 
-  // Check onboarding and Firebase auth on mount
+  // Check onboarding and Google auth on mount
   useEffect(() => {
     if (!hasSeenOnboarding()) {
       setShowOnboarding(true);
     }
 
     const unsubscribe = initAuth(
-      async (authUser, token) => {
-        setGoogleUser(authUser);
-        if (token) setAccessToken(token);
-
-        // Fetch or sync user profile from Firestore if authenticated
-        if (authUser && authUser.uid) {
-          try {
-            const firestoreProfile = await getUserProfileFromFirestore(authUser.uid);
-            if (firestoreProfile) {
-              setUser(firestoreProfile);
-              saveUser(firestoreProfile);
-            }
-          } catch (err) {
-            console.warn('Could not fetch user profile on initAuth:', err);
-          }
-        }
+      (u, token) => {
+        setGoogleUser(u);
+        setAccessToken(token);
       },
       () => {
         setGoogleUser(null);
@@ -180,65 +156,6 @@ export default function App() {
 
     return () => unsubscribe();
   }, []);
-
-  // Real-time Firestore listeners for Appointments and Clinical Progress Notes
-  useEffect(() => {
-    const unsubAppointments = subscribeAppointments(user, isAdmin, (remoteAppointments) => {
-      if (remoteAppointments && remoteAppointments.length > 0) {
-        setAppointments((prev) => {
-          // Merge remote appointments with local to avoid losing offline un-synced items
-          const map = new Map<string, Appointment>();
-          remoteAppointments.forEach((item) => map.set(item.id, item));
-          prev.forEach((item) => {
-            if (!map.has(item.id)) {
-              map.set(item.id, item);
-            }
-          });
-          const merged = Array.from(map.values()).sort(
-            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-          );
-          saveAppointments(merged);
-          return merged;
-        });
-      }
-    });
-
-    const unsubNotes = subscribeProgressNotes(user, isAdmin, (remoteNotes) => {
-      if (remoteNotes && remoteNotes.length > 0) {
-        setProgressNotes((prev) => {
-          const map = new Map<string, ClinicalProgressNote>();
-          remoteNotes.forEach((item) => map.set(item.id, item));
-          prev.forEach((item) => {
-            if (!map.has(item.id)) {
-              map.set(item.id, item);
-            }
-          });
-          const merged = Array.from(map.values()).sort(
-            (a, b) => new Date(b.visitDate).getTime() - new Date(a.visitDate).getTime()
-          );
-          saveProgressNotes(merged);
-          return merged;
-        });
-      }
-    });
-
-    // Real-time listener for current user profile changes in Firestore
-    let unsubProfile: (() => void) | undefined;
-    if (user && user.id && !user.isGuest) {
-      unsubProfile = subscribeUserProfile(user.id, (updatedProfile) => {
-        if (updatedProfile) {
-          setUser(updatedProfile);
-          saveUser(updatedProfile);
-        }
-      });
-    }
-
-    return () => {
-      unsubAppointments();
-      unsubNotes();
-      if (unsubProfile) unsubProfile();
-    };
-  }, [user.id, user.email, isAdmin]);
 
   const handleGoogleAuthSuccess = (u: any, token: string) => {
     setGoogleUser(u);
@@ -268,12 +185,12 @@ export default function App() {
     setPreSelectedTherapyForBooking(null);
   };
 
-  // Sync state changes with local storage, Firestore & Google Sheets
+  // Sync state changes with local storage & real-time auto-sync to Google Sheets
   const handleAppointmentsChange = (updated: Appointment[]) => {
     setAppointments(updated);
     saveAppointments(updated);
 
-    // Otomatis tersinkronisasi real-time ke Google Spreadsheet jika token tersedia
+    // Otomatis tersinkronisasi real-time ke Google Spreadsheet
     const activeToken =
       accessToken ||
       (typeof window !== 'undefined' ? localStorage.getItem('hnc_google_access_token') : null);
@@ -292,19 +209,9 @@ export default function App() {
     saveVideos(updated);
   };
 
-  const handleUserChange = async (updated: UserProfile) => {
+  const handleUserChange = (updated: UserProfile) => {
     setUser(updated);
     saveUser(updated);
-
-    // Persist to Cloud Firestore if registered user
-    if (!updated.isGuest && updated.id) {
-      try {
-        await saveUserProfileToFirestore(updated);
-      } catch (err) {
-        console.warn('Failed to update user profile in Firestore:', err);
-      }
-    }
-
     // Reset selected states so previous session/patient data is not retained
     setSelectedAppointmentForDetail(null);
     setPatientAuthPromptReason(null);
@@ -345,14 +252,7 @@ export default function App() {
     const updated = [newAppointment, ...appointments];
     handleAppointmentsChange(updated);
 
-    // 1. Simpan permanen ke Cloud Firestore
-    try {
-      await saveAppointmentToFirestore(newAppointment);
-    } catch (err) {
-      console.warn('Failed saving appointment to Firestore:', err);
-    }
-
-    // 2. Otomatis langsung append ke Google Sheets terhubung jika token tersedia
+    // Otomatis langsung append ke Google Sheets terhubung jika token tersedia
     const activeToken = accessToken || (await getAccessToken()) || localStorage.getItem('hnc_google_access_token');
     if (activeToken) {
       try {
@@ -364,16 +264,14 @@ export default function App() {
   };
 
   // Cancel appointment with reason
-  const handleCancelAppointment = async (id: string, reason: string) => {
-    let cancelledApp: Appointment | undefined;
+  const handleCancelAppointment = (id: string, reason: string) => {
     const updated = appointments.map((app) => {
       if (app.id === id) {
-        cancelledApp = {
+        return {
           ...app,
           status: 'Dibatalkan' as AppointmentStatus,
           cancelledReason: reason
         };
-        return cancelledApp;
       }
       return app;
     });
@@ -385,40 +283,20 @@ export default function App() {
         cancelledReason: reason
       });
     }
-
-    // Update in Cloud Firestore
-    if (cancelledApp) {
-      try {
-        await saveAppointmentToFirestore(cancelledApp);
-      } catch (err) {
-        console.warn('Failed to update cancelled appointment in Firestore:', err);
-      }
-    }
   };
 
   // Update appointment status from Admin console
-  const handleUpdateAppointmentStatus = async (id: string, newStatus: AppointmentStatus) => {
-    let updatedItem: Appointment | undefined;
+  const handleUpdateAppointmentStatus = (id: string, newStatus: AppointmentStatus) => {
     const updated = appointments.map((app) => {
       if (app.id === id) {
-        updatedItem = { ...app, status: newStatus };
-        return updatedItem;
+        return { ...app, status: newStatus };
       }
       return app;
     });
     handleAppointmentsChange(updated);
-
-    // Sync to Cloud Firestore
-    if (updatedItem) {
-      try {
-        await saveAppointmentToFirestore(updatedItem);
-      } catch (err) {
-        console.warn('Failed to update appointment status in Firestore:', err);
-      }
-    }
   };
 
-  // Admin Delete Appointment with automatic Google Sheets & Firestore re-sync
+  // Admin Delete Appointment with automatic Google Sheets re-sync
   const handleDeleteAppointment = (id: string) => {
     const updated = appointments.filter((app) => app.id !== id);
     handleAppointmentsChange(updated);
@@ -460,43 +338,22 @@ export default function App() {
   };
 
   // Clinical Progress Notes (SOAP) Handlers
-  const handleAddProgressNote = async (newNote: ClinicalProgressNote) => {
+  const handleAddProgressNote = (newNote: ClinicalProgressNote) => {
     const updated = [newNote, ...progressNotes];
     setProgressNotes(updated);
     saveProgressNotes(updated);
-
-    // Save to Cloud Firestore permanently
-    try {
-      await saveProgressNoteToFirestore(newNote);
-    } catch (err) {
-      console.warn('Failed to save progress note to Firestore:', err);
-    }
   };
 
-  const handleUpdateProgressNote = async (updatedNote: ClinicalProgressNote) => {
+  const handleUpdateProgressNote = (updatedNote: ClinicalProgressNote) => {
     const updated = progressNotes.map((n) => (n.id === updatedNote.id ? updatedNote : n));
     setProgressNotes(updated);
     saveProgressNotes(updated);
-
-    // Update in Cloud Firestore
-    try {
-      await saveProgressNoteToFirestore(updatedNote);
-    } catch (err) {
-      console.warn('Failed to update progress note in Firestore:', err);
-    }
   };
 
-  const handleDeleteProgressNote = async (id: string) => {
+  const handleDeleteProgressNote = (id: string) => {
     const updated = progressNotes.filter((n) => n.id !== id);
     setProgressNotes(updated);
     saveProgressNotes(updated);
-
-    // Delete in Cloud Firestore
-    try {
-      await deleteProgressNoteFromFirestore(id);
-    } catch (err) {
-      console.warn('Failed to delete progress note from Firestore:', err);
-    }
   };
 
   // Active appointments counter for badges (scoped strictly to current active patient, or all for admin)
@@ -594,10 +451,8 @@ export default function App() {
             onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
             onDeleteAppointment={handleDeleteAppointment}
             onAddTherapy={handleAddTherapy}
-            onUpdateTherapy={handleUpdateTherapy}
             onDeleteTherapy={handleDeleteTherapy}
             onAddVideo={handleAddVideo}
-            onUpdateVideo={handleUpdateVideo}
             onDeleteVideo={handleDeleteVideo}
             onAddProgressNote={handleAddProgressNote}
             onUpdateProgressNote={handleUpdateProgressNote}
@@ -606,48 +461,62 @@ export default function App() {
         )}
       </main>
 
-      {/* Persistent Bottom Bar Navigation (Mobile) */}
+      {/* Bottom Navigation for Mobile / Tablet */}
       <BottomNav
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        pendingCount={activeAppointmentsCount}
+        appointmentsCount={activeAppointmentsCount}
         isAdmin={isAdmin}
       />
 
-      {/* MODALS */}
-      {/* 1. Onboarding Modal */}
+      {/* Modals */}
+      <PatientAuthModal
+        isOpen={showPatientAuthModal}
+        onClose={() => {
+          setShowPatientAuthModal(false);
+          setPatientAuthPromptReason(null);
+          setPendingBookingTherapy(null);
+        }}
+        currentUser={user}
+        onPatientAuthSuccess={(updatedPatient) => {
+          handleUserChange(updatedPatient);
+        }}
+        onGoogleAuthSuccess={handleGoogleAuthSuccess}
+        onLogout={handlePatientLogout}
+        authPromptReason={patientAuthPromptReason}
+      />
+
+      <NakesLoginModal
+        isOpen={showNakesLoginModal}
+        onClose={() => setShowNakesLoginModal(false)}
+        onLoginSuccess={handleNakesLoginSuccess}
+      />
       <OnboardingModal
         isOpen={showOnboarding}
         onClose={handleCloseOnboarding}
       />
 
-      {/* 2. Safety Guidelines Modal */}
       <SafetyModal
         isOpen={showSafetyModal}
         onClose={() => setShowSafetyModal(false)}
       />
 
-      {/* 3. Therapy Detail Modal */}
       <TherapyDetailModal
         therapy={selectedTherapyForDetail}
+        isOpen={!!selectedTherapyForDetail}
         onClose={() => setSelectedTherapyForDetail(null)}
-        onBookNow={(th) => {
+        onSelectSchedule={(th) => {
           setSelectedTherapyForDetail(null);
           handleOpenBooking(th);
         }}
-        onOpenSafety={() => {
-          setSelectedTherapyForDetail(null);
-          setShowSafetyModal(true);
-        }}
       />
 
-      {/* 4. Video Player Modal */}
       <VideoPlayerModal
         video={selectedVideoForPlayer}
+        isOpen={!!selectedVideoForPlayer}
         onClose={() => setSelectedVideoForPlayer(null)}
       />
 
-      {/* 5. Booking Modal (Requires logged in user profile) */}
       <BookingModal
         isOpen={showBookingModal}
         onClose={() => {
@@ -656,41 +525,31 @@ export default function App() {
         }}
         therapies={therapies}
         locations={locations}
+        preSelectedTherapy={preSelectedTherapyForBooking}
+        existingAppointments={appointments}
         currentUser={user}
+        accessToken={accessToken}
+        googleUser={googleUser}
+        onAuthSuccess={handleGoogleAuthSuccess}
         onBookingSuccess={handleBookingSuccess}
-        initialTherapy={preSelectedTherapyForBooking}
+        onGoToMyAppointments={() => {
+          setShowBookingModal(false);
+          setActiveTab('appointments');
+        }}
+        onRequestAuth={() => {
+          setPendingBookingTherapy(preSelectedTherapyForBooking || null);
+          setPatientAuthPromptReason('Silakan masuk (login) atau daftar akun pasien terlebih dahulu untuk melakukan reservasi.');
+          setShowPatientAuthModal(true);
+        }}
       />
 
-      {/* 6. Appointment Detail & Ticket Modal */}
       <AppointmentDetailModal
         appointment={selectedAppointmentForDetail}
+        isOpen={!!selectedAppointmentForDetail}
         onClose={() => setSelectedAppointmentForDetail(null)}
         onCancelAppointment={handleCancelAppointment}
         currentUser={user}
         isAdmin={isAdmin}
-        googleAccessToken={accessToken}
-      />
-
-      {/* 7. Tenaga Kesehatan (Nakes) Login Modal */}
-      <NakesLoginModal
-        isOpen={showNakesLoginModal}
-        onClose={() => setShowNakesLoginModal(false)}
-        onLoginSuccess={handleNakesLoginSuccess}
-        onGoogleAuthSuccess={handleGoogleAuthSuccess}
-      />
-
-      {/* 8. Patient Account / Authentication Modal */}
-      <PatientAuthModal
-        isOpen={showPatientAuthModal}
-        onClose={() => {
-          setShowPatientAuthModal(false);
-          setPatientAuthPromptReason(null);
-        }}
-        currentUser={user}
-        onPatientAuthSuccess={handleUserChange}
-        onGoogleAuthSuccess={handleGoogleAuthSuccess}
-        onLogout={handlePatientLogout}
-        authPromptReason={patientAuthPromptReason}
       />
     </div>
   );

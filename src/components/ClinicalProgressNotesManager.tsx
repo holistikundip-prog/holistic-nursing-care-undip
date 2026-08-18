@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   FileText,
   Plus,
@@ -28,12 +28,10 @@ import {
   Phone,
   Mail,
   History,
-  X,
-  ExternalLink
+  X
 } from 'lucide-react';
 import { ClinicalProgressNote, Appointment, UserProfile, Therapy } from '../types';
-import { formatIndonesianDate } from '../utils/storage';
-import { getAllUserProfilesFromFirestore } from '../services/firebaseFirestore';
+import { formatIndonesianDate, getRegisteredPatients } from '../utils/storage';
 
 interface ClinicalProgressNotesManagerProps {
   progressNotes: ClinicalProgressNote[];
@@ -44,7 +42,6 @@ interface ClinicalProgressNotesManagerProps {
   therapies: Therapy[];
   initialSelectedPatient?: string | null;
   onClearInitialPatient?: () => void;
-  googleAccessToken?: string | null;
 }
 
 interface PatientGroup {
@@ -76,8 +73,7 @@ export const ClinicalProgressNotesManager: React.FC<ClinicalProgressNotesManager
   appointments,
   therapies,
   initialSelectedPatient,
-  onClearInitialPatient,
-  googleAccessToken
+  onClearInitialPatient
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPatientFilter, setSelectedPatientFilter] = useState<string>(initialSelectedPatient || 'Semua');
@@ -107,19 +103,10 @@ export const ClinicalProgressNotesManager: React.FC<ClinicalProgressNotesManager
   const [formPulse, setFormPulse] = useState('78 x/menit');
   const [formRR, setFormRR] = useState('18 x/menit');
   const [formPainScale, setFormPainScale] = useState<number>(3);
-  const [registeredPatientsList, setRegisteredPatientsList] = useState<UserProfile[]>([]);
 
-  // Fetch registered patients directly from Cloud Firestore
-  useEffect(() => {
-    let isMounted = true;
-    getAllUserProfilesFromFirestore().then((patients) => {
-      if (isMounted && patients && patients.length > 0) {
-        setRegisteredPatientsList(patients);
-      }
-    });
-    return () => {
-      isMounted = false;
-    };
+  // Registered Patients List for seamless profile linkage
+  const registeredPatientsList = useMemo(() => {
+    return getRegisteredPatients();
   }, []);
 
   // Unique list of patients for filter

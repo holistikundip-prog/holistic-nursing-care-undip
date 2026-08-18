@@ -25,9 +25,7 @@ import {
   Activity,
   HeartPulse,
   ChevronRight,
-  Printer,
-  HardDrive,
-  ExternalLink
+  Printer
 } from 'lucide-react';
 import { UserProfile, Appointment, ActiveTab, ClinicalProgressNote } from '../types';
 import { formatIndonesianDate, filterUserAppointments, filterProgressNotesForUser } from '../utils/storage';
@@ -215,7 +213,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       {saveSuccess && (
         <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 text-emerald-800 text-xs flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>Profil berhasil diperbarui dan tersimpan di database cloud Firebase.</span>
+          <span>Profil berhasil diperbarui dan tersimpan dalam data lokal.</span>
         </div>
       )}
 

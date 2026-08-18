@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Calendar, Clock, MapPin, QrCode, Phone, AlertTriangle, CheckCircle, Trash2, ShieldCheck, User } from 'lucide-react';
+import { X, Calendar, Clock, MapPin, QrCode, Phone, AlertTriangle, CheckCircle, Trash2, ShieldCheck, User, Mail } from 'lucide-react';
 import { Appointment, UserProfile } from '../types';
 import { formatIndonesianDate, isAppointmentForUser } from '../utils/storage';
 
@@ -10,7 +10,6 @@ interface AppointmentDetailModalProps {
   onCancelAppointment: (id: string, reason: string) => void;
   currentUser?: UserProfile;
   isAdmin?: boolean;
-  googleAccessToken?: string | null;
 }
 
 export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
