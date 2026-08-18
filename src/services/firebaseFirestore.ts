@@ -18,9 +18,8 @@ import { UserProfile, Appointment, ClinicalProgressNote } from '../types';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// DIPERBAIKI: Mengambil ID database kustom secara dinamis dari file config AI Studio
-const databaseId = (firebaseConfig as any).firestoreDatabaseId || (firebaseConfig as any).databaseId || '(default)';
-export const db = databaseId && databaseId !== '(default)' ? getFirestore(app, databaseId) : getFirestore(app);
+// DIPAKSA MASUK KE DATABASE KUSTOM AI STUDIO SECARA PERMANEN
+export const db = getFirestore(app, "ai-studio-holisticnursingc-41f2a8eb-ff7f-4984-b7f9-2f30fc8a3169");
 
 export enum OperationType {
   CREATE = 'create',
