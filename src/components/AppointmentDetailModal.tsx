@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { X, Calendar, Clock, MapPin, QrCode, Phone, AlertTriangle, CheckCircle, Trash2, ShieldCheck, User, Mail, HardDrive, Sparkles, Send } from 'lucide-react';
+import { X, Calendar, Clock, MapPin, QrCode, Phone, AlertTriangle, CheckCircle, Trash2, ShieldCheck, User } from 'lucide-react';
 import { Appointment, UserProfile } from '../types';
 import { formatIndonesianDate, isAppointmentForUser } from '../utils/storage';
-import { sendAppointmentConfirmationEmail } from '../services/googleGmail';
-import { exportAppointmentToDrive } from '../services/googleDrive';
 
 interface AppointmentDetailModalProps {
   appointment: Appointment | null;
@@ -21,72 +19,12 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
   onClose,
   onCancelAppointment,
   currentUser,
-  isAdmin = false,
-  googleAccessToken
+  isAdmin = false
 }) => {
   const [isConfirmingCancel, setIsConfirmingCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState('Ada keperluan mendadak');
 
-  // Workspace Actions State
-  const [isSendingEmail, setIsSendingEmail] = useState(false);
-  const [isSavingDrive, setIsSavingDrive] = useState(false);
-  const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
   if (!isOpen || !appointment) return null;
-
-  const handleSendGmailTicket = async () => {
-    if (!googleAccessToken) {
-      setActionFeedback({
-        type: 'error',
-        text: 'Silakan hubungkan akun Google di menu Profil atau Integrasi untuk mengirim email.'
-      });
-      return;
-    }
-
-    setIsSendingEmail(true);
-    setActionFeedback(null);
-    const res = await sendAppointmentConfirmationEmail(googleAccessToken, appointment);
-    setIsSendingEmail(false);
-
-    if (res.success) {
-      setActionFeedback({
-        type: 'success',
-        text: `E-Tiket berhasil dikirim ke Gmail (${appointment.userEmail})!`
-      });
-    } else {
-      setActionFeedback({
-        type: 'error',
-        text: res.error || 'Gagal mengirim email e-tiket.'
-      });
-    }
-  };
-
-  const handleSaveToDrive = async () => {
-    if (!googleAccessToken) {
-      setActionFeedback({
-        type: 'error',
-        text: 'Silakan hubungkan akun Google untuk menyimpan ke Google Drive.'
-      });
-      return;
-    }
-
-    setIsSavingDrive(true);
-    setActionFeedback(null);
-    const res = await exportAppointmentToDrive(googleAccessToken, appointment);
-    setIsSavingDrive(false);
-
-    if (res.success) {
-      setActionFeedback({
-        type: 'success',
-        text: `E-Tiket berhasil diarsipkan di folder Google Drive Anda!`
-      });
-    } else {
-      setActionFeedback({
-        type: 'error',
-        text: res.error || 'Gagal menyimpan ke Google Drive.'
-      });
-    }
-  };
 
   // Security & Privacy Barrier: Ensure e-ticket belongs to active patient if not in Nakes/Admin mode
   const isAuthorized = isAdmin || (currentUser && isAppointmentForUser(appointment, currentUser));
@@ -220,54 +158,6 @@ export const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                 <strong>Alasan Pembatalan:</strong> {appointment.cancelledReason}
               </div>
             )}
-
-            {/* Action Feedback */}
-            {actionFeedback && (
-              <div
-                className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
-                  actionFeedback.type === 'success'
-                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
-                    : 'bg-rose-50 border border-rose-200 text-rose-800'
-                }`}
-              >
-                {actionFeedback.type === 'success' ? (
-                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                ) : (
-                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                )}
-                <span>{actionFeedback.text}</span>
-              </div>
-            )}
-
-            {/* Google Workspace Integrations (Gmail & Google Drive) */}
-            <div className="p-3.5 bg-stone-50 border border-stone-200 rounded-2xl space-y-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">
-                Integrasi Google Workspace
-              </span>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={handleSendGmailTicket}
-                  disabled={isSendingEmail}
-                  className="p-2.5 bg-white hover:bg-rose-50 border border-stone-200 hover:border-rose-300 rounded-xl text-xs font-bold text-rose-900 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
-                  title="Kirim E-Tiket ke alamat Gmail Pasien"
-                >
-                  <Mail className="w-3.5 h-3.5 text-rose-600" />
-                  <span>{isSendingEmail ? 'Mengirim...' : 'Kirim ke Gmail'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSaveToDrive}
-                  disabled={isSavingDrive}
-                  className="p-2.5 bg-white hover:bg-sky-50 border border-stone-200 hover:border-sky-300 rounded-xl text-xs font-bold text-sky-900 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
-                  title="Simpan E-Tiket ke Google Drive"
-                >
-                  <HardDrive className="w-3.5 h-3.5 text-sky-600" />
-                  <span>{isSavingDrive ? 'Menyimpan...' : 'Simpan ke Drive'}</span>
-                </button>
-              </div>
-            </div>
           </div>
 
           {/* Cancellation Confirmation View */}

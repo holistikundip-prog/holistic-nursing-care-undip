@@ -11,9 +11,10 @@ import {
   query,
   where,
   onSnapshot,
-  getDocFromServer
+  enableNetwork,
+  disableNetwork
 } from 'firebase/firestore';
-import { auth } from './firebaseAuth';
+import { auth, getFriendlyErrorMessage } from './firebaseAuth';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { UserProfile, Appointment, ClinicalProgressNote } from '../types';
 
@@ -47,6 +48,22 @@ export interface FirestoreErrorInfo {
   };
 }
 
+export function isOfflineOrNetworkError(err: any): boolean {
+  if (!err) return false;
+  const msg = (err?.message || String(err)).toLowerCase();
+  const code = (err?.code || '').toLowerCase();
+  return (
+    msg.includes('offline') ||
+    msg.includes('client is offline') ||
+    msg.includes('failed to get document') ||
+    msg.includes('unavailable') ||
+    msg.includes('deadline-exceeded') ||
+    msg.includes('network') ||
+    code.includes('unavailable') ||
+    code.includes('deadline-exceeded')
+  );
+}
+
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
@@ -64,21 +81,12 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
-
-// Test Firestore connection on boot
-export async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Firestore: the client is currently offline.');
-    }
+  console.warn('Firestore Operation Notice (Debug):', errInfo);
+  if (!isOfflineOrNetworkError(error)) {
+    const friendly = getFriendlyErrorMessage(error, 'Koneksi internet atau server sedang bermasalah. Silakan periksa kembali koneksi Anda atau coba beberapa saat lagi.');
+    throw new Error(friendly);
   }
 }
-testConnection();
 
 // ================= USER PROFILES =================
 
@@ -100,8 +108,12 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
       updatedAt: new Date().toISOString()
     };
     await setDoc(userDocRef, cleanData, { merge: true });
-  } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, path);
+  } catch (err: any) {
+    if (!isOfflineOrNetworkError(err)) {
+      handleFirestoreError(err, OperationType.WRITE, path);
+    } else {
+      console.info('User profile queued in Firestore local cache (offline mode).');
+    }
   }
 }
 
@@ -110,12 +122,19 @@ export async function getUserProfileFromFirestore(userId: string): Promise<UserP
   try {
     const userDocRef = doc(db, 'users', userId);
     const snap = await getDoc(userDocRef);
-    if (snap.exists()) {
+    if (snap && snap.exists()) {
       return snap.data() as UserProfile;
     }
     return null;
-  } catch (err) {
-    handleFirestoreError(err, OperationType.GET, path);
+  } catch (err: any) {
+    console.warn(`getUserProfileFromFirestore notice for ${userId}:`, err?.message || err);
+    if (!isOfflineOrNetworkError(err)) {
+      try {
+        handleFirestoreError(err, OperationType.GET, path);
+      } catch {
+        return null;
+      }
+    }
     return null;
   }
 }
@@ -130,8 +149,8 @@ export async function getAllUserProfilesFromFirestore(): Promise<UserProfile[]> 
       list.push(docSnap.data() as UserProfile);
     });
     return list;
-  } catch (err) {
-    console.warn('getAllUserProfilesFromFirestore error:', err);
+  } catch (err: any) {
+    console.warn('getAllUserProfilesFromFirestore notice:', err?.message || err);
     return [];
   }
 }
@@ -153,9 +172,13 @@ export function subscribeUserProfile(
       }
     },
     (err) => {
-      console.warn('subscribeUserProfile error:', err);
+      console.warn('subscribeUserProfile notice:', err?.message || err);
       if (onError) onError(err);
-      handleFirestoreError(err, OperationType.GET, path);
+      if (!isOfflineOrNetworkError(err)) {
+        try {
+          handleFirestoreError(err, OperationType.GET, path);
+        } catch {}
+      }
     }
   );
 }
@@ -172,8 +195,12 @@ export async function saveAppointmentToFirestore(appointment: Appointment): Prom
       updatedAt: new Date().toISOString()
     };
     await setDoc(appDocRef, payload, { merge: true });
-  } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, path);
+  } catch (err: any) {
+    if (!isOfflineOrNetworkError(err)) {
+      handleFirestoreError(err, OperationType.WRITE, path);
+    } else {
+      console.info('Appointment save queued in Firestore local cache.');
+    }
   }
 }
 
@@ -182,8 +209,10 @@ export async function deleteAppointmentFromFirestore(appointmentId: string): Pro
   try {
     const appDocRef = doc(db, 'appointments', appointmentId);
     await deleteDoc(appDocRef);
-  } catch (err) {
-    handleFirestoreError(err, OperationType.DELETE, path);
+  } catch (err: any) {
+    if (!isOfflineOrNetworkError(err)) {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    }
   }
 }
 
@@ -218,9 +247,13 @@ export function subscribeAppointments(
       onUpdate(list);
     },
     (err) => {
-      console.warn('subscribeAppointments error:', err);
+      console.warn('subscribeAppointments notice:', err?.message || err);
       if (onError) onError(err);
-      handleFirestoreError(err, OperationType.LIST, path);
+      if (!isOfflineOrNetworkError(err)) {
+        try {
+          handleFirestoreError(err, OperationType.LIST, path);
+        } catch {}
+      }
     }
   );
 }
@@ -237,8 +270,12 @@ export async function saveProgressNoteToFirestore(note: ClinicalProgressNote): P
       updatedAt: new Date().toISOString()
     };
     await setDoc(noteDocRef, payload, { merge: true });
-  } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, path);
+  } catch (err: any) {
+    if (!isOfflineOrNetworkError(err)) {
+      handleFirestoreError(err, OperationType.WRITE, path);
+    } else {
+      console.info('Progress note save queued in Firestore local cache.');
+    }
   }
 }
 
@@ -247,8 +284,10 @@ export async function deleteProgressNoteFromFirestore(noteId: string): Promise<v
   try {
     const noteDocRef = doc(db, 'clinical_progress_notes', noteId);
     await deleteDoc(noteDocRef);
-  } catch (err) {
-    handleFirestoreError(err, OperationType.DELETE, path);
+  } catch (err: any) {
+    if (!isOfflineOrNetworkError(err)) {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    }
   }
 }
 
@@ -282,9 +321,13 @@ export function subscribeProgressNotes(
       onUpdate(list);
     },
     (err) => {
-      console.warn('subscribeProgressNotes error:', err);
+      console.warn('subscribeProgressNotes notice:', err?.message || err);
       if (onError) onError(err);
-      handleFirestoreError(err, OperationType.LIST, path);
+      if (!isOfflineOrNetworkError(err)) {
+        try {
+          handleFirestoreError(err, OperationType.LIST, path);
+        } catch {}
+      }
     }
   );
 }

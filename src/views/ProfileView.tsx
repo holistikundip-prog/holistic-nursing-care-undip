@@ -44,8 +44,6 @@ interface ProfileViewProps {
   onExitNakesMode: () => void;
   onOpenPatientAuth?: (reason?: string) => void;
   onLogoutPatient?: () => void;
-  onOpenGmailHub?: () => void;
-  onOpenDriveHub?: () => void;
 }
 
 export const ProfileView: React.FC<ProfileViewProps> = ({
@@ -59,9 +57,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   onRequestNakesAccess,
   onExitNakesMode,
   onOpenPatientAuth,
-  onLogoutPatient,
-  onOpenGmailHub,
-  onOpenDriveHub
+  onLogoutPatient
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user.name);
@@ -599,46 +595,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           </div>
           <span className="text-xs text-emerald-700 font-bold">Lihat</span>
         </button>
-
-        {onOpenGmailHub && (
-          <button
-            onClick={onOpenGmailHub}
-            className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-rose-50/50 border border-rose-100 bg-rose-50/20 transition cursor-pointer text-left"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-rose-100 text-rose-800 flex items-center justify-center">
-                <Mail className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-bold text-stone-900 text-xs sm:text-sm">Gmail Hub & Surat Medis</h4>
-                <p className="text-[11px] text-stone-500">Kirim pesan, konsultasi email, dan terima notifikasi e-tiket</p>
-              </div>
-            </div>
-            <span className="text-xs text-rose-700 font-bold bg-rose-100 px-2.5 py-1 rounded-lg">
-              Buka Gmail
-            </span>
-          </button>
-        )}
-
-        {onOpenDriveHub && (
-          <button
-            onClick={onOpenDriveHub}
-            className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-sky-50/50 border border-sky-100 bg-sky-50/20 transition cursor-pointer text-left"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center">
-                <HardDrive className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-bold text-stone-900 text-xs sm:text-sm">Google Drive & Berkas Cloud</h4>
-                <p className="text-[11px] text-stone-500">Akses berkas arsip rekam medis dan pencadangan data sistem</p>
-              </div>
-            </div>
-            <span className="text-xs text-sky-700 font-bold bg-sky-100 px-2.5 py-1 rounded-lg">
-              Buka Drive
-            </span>
-          </button>
-        )}
 
         {/* Switcher to Admin / Tenaga Kesehatan mode */}
         <div className="pt-2 border-t border-stone-100 space-y-2">

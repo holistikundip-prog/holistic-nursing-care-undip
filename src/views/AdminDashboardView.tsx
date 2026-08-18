@@ -48,8 +48,6 @@ interface AdminDashboardViewProps {
   onAddProgressNote: (note: ClinicalProgressNote) => void;
   onUpdateProgressNote: (note: ClinicalProgressNote) => void;
   onDeleteProgressNote: (id: string) => void;
-  onOpenGmailModal?: () => void;
-  onOpenDriveModal?: () => void;
 }
 
 export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
@@ -72,9 +70,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   onDeleteVideo,
   onAddProgressNote,
   onUpdateProgressNote,
-  onDeleteProgressNote,
-  onOpenGmailModal = () => {},
-  onOpenDriveModal = () => {}
+  onDeleteProgressNote
 }) => {
   const [adminTab, setAdminTab] = useState<'appointments' | 'progressNotes' | 'patients' | 'therapies' | 'videos'>('appointments');
   const [selectedPatientForProgressFilter, setSelectedPatientForProgressFilter] = useState<string | null>(null);
@@ -276,17 +272,13 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Google Workspace Suite Hub (Sheets, Gmail, Drive) */}
+      {/* Google Sheets Real-Time Sync Hub */}
       <GoogleWorkspaceHubCard
         googleUser={googleUser}
         accessToken={accessToken}
         onAuthSuccess={onGoogleAuthSuccess}
         onLogout={onGoogleLogout}
         appointments={appointments}
-        progressNotes={progressNotes}
-        therapies={therapies}
-        onOpenGmailModal={onOpenGmailModal}
-        onOpenDriveModal={onOpenDriveModal}
       />
 
       {/* Admin Navigation Tabs */}

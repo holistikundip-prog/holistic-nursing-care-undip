@@ -14,8 +14,6 @@ import { BookingModal } from './components/BookingModal';
 import { AppointmentDetailModal } from './components/AppointmentDetailModal';
 import { NakesLoginModal } from './components/NakesLoginModal';
 import { PatientAuthModal } from './components/PatientAuthModal';
-import { GmailHubModal } from './components/GmailHubModal';
-import { GoogleDriveHubModal } from './components/GoogleDriveHubModal';
 
 import { HomeView } from './views/HomeView';
 import { TherapyListView } from './views/TherapyListView';
@@ -90,8 +88,6 @@ export default function App() {
   const [pendingBookingTherapy, setPendingBookingTherapy] = useState<Therapy | null>(null);
   const [preSelectedTherapyForBooking, setPreSelectedTherapyForBooking] = useState<Therapy | null>(null);
   const [selectedAppointmentForDetail, setSelectedAppointmentForDetail] = useState<Appointment | null>(null);
-  const [showGmailModal, setShowGmailModal] = useState<boolean>(false);
-  const [showDriveModal, setShowDriveModal] = useState<boolean>(false);
 
   // Nakes Mode authentication handlers
   const handleRequestNakesAccess = () => {
@@ -581,8 +577,6 @@ export default function App() {
               setShowPatientAuthModal(true);
             }}
             onLogoutPatient={handlePatientLogout}
-            onOpenGmailHub={() => setShowGmailModal(true)}
-            onOpenDriveHub={() => setShowDriveModal(true)}
           />
         )}
 
@@ -608,8 +602,6 @@ export default function App() {
             onAddProgressNote={handleAddProgressNote}
             onUpdateProgressNote={handleUpdateProgressNote}
             onDeleteProgressNote={handleDeleteProgressNote}
-            onOpenGmailModal={() => setShowGmailModal(true)}
-            onOpenDriveModal={() => setShowDriveModal(true)}
           />
         )}
       </main>
@@ -699,29 +691,6 @@ export default function App() {
         onGoogleAuthSuccess={handleGoogleAuthSuccess}
         onLogout={handlePatientLogout}
         authPromptReason={patientAuthPromptReason}
-      />
-
-      {/* 9. Gmail Hub Modal */}
-      <GmailHubModal
-        isOpen={showGmailModal}
-        onClose={() => setShowGmailModal(false)}
-        accessToken={accessToken}
-        currentUser={user}
-        appointments={appointments}
-        progressNotes={progressNotes}
-        onAuthSuccess={handleGoogleAuthSuccess}
-      />
-
-      {/* 10. Google Drive Cloud Hub Modal */}
-      <GoogleDriveHubModal
-        isOpen={showDriveModal}
-        onClose={() => setShowDriveModal(false)}
-        accessToken={accessToken}
-        currentUser={user}
-        appointments={appointments}
-        progressNotes={progressNotes}
-        therapies={therapies}
-        onAuthSuccess={handleGoogleAuthSuccess}
       />
     </div>
   );

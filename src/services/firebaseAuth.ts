@@ -18,15 +18,7 @@ const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
 export const SCOPES = [
-  'https://www.googleapis.com/auth/spreadsheets',
-  'https://mail.google.com/',
-  'https://www.googleapis.com/auth/gmail.send',
-  'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/gmail.compose',
-  'https://www.googleapis.com/auth/gmail.modify',
-  'https://www.googleapis.com/auth/drive',
-  'https://www.googleapis.com/auth/drive.file',
-  'https://www.googleapis.com/auth/drive.readonly'
+  'https://www.googleapis.com/auth/spreadsheets'
 ];
 
 const provider = new GoogleAuthProvider();
@@ -63,56 +55,88 @@ export class FirebaseAuthError extends Error {
   }
 }
 
-export function parseFirebaseAuthError(error: any, fallbackMessage: string): FirebaseAuthError {
-  const code = error?.code || '';
-  let message = fallbackMessage;
+export function getFriendlyErrorMessage(error: any, fallbackMessage?: string): string {
+  if (!error) {
+    return fallbackMessage || 'Terjadi kendala pada sistem. Silakan coba beberapa saat lagi.';
+  }
+
+  let rawMessage = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+  const code = (error?.code || '').toLowerCase();
+
+  // If rawMessage is a stringified JSON object (e.g. from Firestore error info)
+  if (typeof rawMessage === 'string' && rawMessage.trim().startsWith('{') && rawMessage.trim().endsWith('}')) {
+    try {
+      const parsed = JSON.parse(rawMessage);
+      if (parsed.error) {
+        rawMessage = parsed.error;
+      }
+    } catch {
+      // ignore parse failure
+    }
+  }
+
+  const lower = (rawMessage + ' ' + code).toLowerCase();
+
+  if (
+    lower.includes('offline') ||
+    lower.includes('client is offline') ||
+    lower.includes('failed to get document') ||
+    lower.includes('unavailable') ||
+    lower.includes('deadline-exceeded') ||
+    lower.includes('network') ||
+    code === 'auth/network-request-failed'
+  ) {
+    return 'Koneksi internet atau server sedang bermasalah. Silakan periksa kembali koneksi Anda atau coba beberapa saat lagi.';
+  }
 
   switch (code) {
     case 'auth/popup-blocked':
-      message = 'Jendela pop-up Google diblokir oleh peramban (browser). Harap izinkan pop-up untuk situs ini atau buka aplikasi di tab baru jika Anda menggunakan pratinjau.';
-      break;
+      return 'Jendela pop-up Google diblokir oleh peramban (browser). Harap izinkan pop-up untuk situs ini atau buka aplikasi di tab baru jika Anda menggunakan pratinjau.';
     case 'auth/popup-closed-by-user':
-      message = 'Jendela masuk Google ditutup sebelum proses selesai. Silakan coba kembali.';
-      break;
+      return 'Jendela masuk Google ditutup sebelum proses selesai. Silakan coba kembali.';
     case 'auth/cancelled-popup-request':
-      message = 'Permintaan masuk Google sebelumnya dibatalkan karena ada permintaan baru.';
-      break;
+      return 'Permintaan masuk Google sebelumnya dibatalkan karena ada permintaan baru.';
     case 'auth/network-request-failed':
-      message = 'Koneksi jaringan ke Firebase terputus (auth/network-request-failed). Pastikan koneksi internet aktif atau coba beberapa saat lagi.';
-      break;
+      return 'Koneksi internet atau server sedang bermasalah. Silakan periksa kembali koneksi Anda atau coba beberapa saat lagi.';
     case 'auth/email-already-in-use':
-      message = 'Email ini sudah terdaftar. Silakan pilih tab "Masuk" untuk melanjutkan.';
-      break;
+      return 'Email ini sudah terdaftar. Silakan pilih tab "Masuk" untuk melanjutkan.';
     case 'auth/invalid-credential':
     case 'auth/user-not-found':
     case 'auth/wrong-password':
-      message = 'Email atau kata sandi tidak cocok. Jika Anda belum memiliki akun, silakan pilih tab "Daftar Baru".';
-      break;
+      return 'Email atau kata sandi tidak cocok. Jika Anda belum memiliki akun, silakan pilih tab "Daftar Baru".';
     case 'auth/invalid-email':
-      message = 'Format alamat email tidak valid. Pastikan penulisan email sudah benar.';
-      break;
+      return 'Format alamat email tidak valid. Pastikan penulisan email sudah benar.';
     case 'auth/weak-password':
-      message = 'Kata sandi terlalu lemah. Gunakan minimal 6 karakter.';
-      break;
+      return 'Kata sandi terlalu lemah. Gunakan minimal 6 karakter.';
     case 'auth/unauthorized-domain':
-      message = 'Domain aplikasi ini belum diizinkan di Firebase Authentication. Anda dapat menggunakan login Email & Kata Sandi atau menambahkan domain di konsol Firebase.';
-      break;
+      return 'Domain aplikasi ini belum diizinkan di Firebase Authentication. Anda dapat menggunakan login Email & Kata Sandi atau menambahkan domain di konsol Firebase.';
     case 'auth/too-many-requests':
-      message = 'Terlalu banyak percobaan gagal. Akses sementara dibatasi demi keamanan, silakan coba lagi beberapa saat.';
-      break;
+      return 'Terlalu banyak percobaan gagal. Akses sementara dibatasi demi keamanan, silakan coba lagi beberapa saat.';
     case 'auth/user-disabled':
-      message = 'Akun ini telah dinonaktifkan oleh administrator.';
-      break;
+      return 'Akun ini telah dinonaktifkan oleh administrator.';
     case 'auth/operation-not-allowed':
-      message = 'Metode otentikasi ini belum diaktifkan di Firebase Console.';
-      break;
+      return 'Metode otentikasi ini belum diaktifkan di Firebase Console.';
+    case 'permission-denied':
+      return 'Akses data tidak diizinkan atau sesi telah berakhir. Silakan masuk kembali ke akun Anda.';
     default:
-      if (error?.message) {
-        message = error.message;
-      }
       break;
   }
 
+  // Check if rawMessage itself looks like raw code or json
+  if (rawMessage.includes('{') || rawMessage.includes('}') || rawMessage.includes('authInfo') || rawMessage.includes('operationType')) {
+    return 'Koneksi internet atau server sedang bermasalah. Silakan periksa kembali koneksi Anda atau coba beberapa saat lagi.';
+  }
+
+  if (rawMessage && !rawMessage.startsWith('Firebase:')) {
+    return rawMessage;
+  }
+
+  return fallbackMessage || 'Koneksi internet atau server sedang bermasalah. Silakan periksa kembali koneksi Anda atau coba beberapa saat lagi.';
+}
+
+export function parseFirebaseAuthError(error: any, fallbackMessage: string): FirebaseAuthError {
+  const code = error?.code || '';
+  const message = getFriendlyErrorMessage(error, fallbackMessage);
   return new FirebaseAuthError(message, code);
 }
 

@@ -9,9 +9,10 @@ import {
   X,
   ShieldCheck,
   CheckCircle2,
-  ExternalLink
+  ExternalLink,
+  WifiOff
 } from 'lucide-react';
-import { googleSignIn } from '../services/firebaseAuth';
+import { googleSignIn, getFriendlyErrorMessage } from '../services/firebaseAuth';
 
 interface NakesLoginModalProps {
   isOpen: boolean;
@@ -78,7 +79,7 @@ export const NakesLoginModal: React.FC<NakesLoginModalProps> = ({
         setIsPopupBlocked(true);
         setErrorMessage('Jendela pop-up login Google diblokir oleh browser. Silakan buka aplikasi di tab baru atau izinkan pop-up.');
       } else {
-        setErrorMessage(err?.message || 'Gagal login dengan Google. Pastikan izin akses telah diberikan.');
+        setErrorMessage(getFriendlyErrorMessage(err, 'Gagal login dengan Google. Pastikan izin akses telah diberikan.'));
       }
     }
   };
@@ -208,10 +209,18 @@ export const NakesLoginModal: React.FC<NakesLoginModalProps> = ({
           {/* Form Body */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {errorMessage && (
-              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 text-xs space-y-2 animate-shake">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  <div className="flex-1 font-medium">{errorMessage}</div>
+              <div className={`p-3.5 rounded-2xl text-xs space-y-2 animate-shake border ${
+                errorMessage.includes('Koneksi internet atau server sedang bermasalah')
+                  ? 'bg-amber-50/90 border-amber-300 text-amber-900 shadow-xs'
+                  : 'bg-rose-50 border-rose-200 text-rose-800'
+              }`}>
+                <div className="flex items-start gap-2.5">
+                  {errorMessage.includes('Koneksi internet atau server sedang bermasalah') ? (
+                    <WifiOff className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1 font-medium leading-relaxed">{errorMessage}</div>
                 </div>
                 {isPopupBlocked && (
                   <div className="pt-1 flex justify-end">
@@ -222,6 +231,17 @@ export const NakesLoginModal: React.FC<NakesLoginModalProps> = ({
                     >
                       <span>Buka di Tab Baru</span>
                       <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+                {errorMessage.includes('Koneksi internet atau server sedang bermasalah') && (
+                  <div className="pt-1 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setErrorMessage('')}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-900 text-white rounded-lg font-bold text-[11px] hover:bg-amber-800 transition cursor-pointer"
+                    >
+                      <span>Tutup Peringatan</span>
                     </button>
                   </div>
                 )}

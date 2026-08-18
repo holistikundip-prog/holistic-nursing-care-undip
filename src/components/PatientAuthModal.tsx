@@ -18,11 +18,12 @@ import {
   Check,
   ExternalLink,
   ArrowRight,
-  RefreshCw
+  RefreshCw,
+  WifiOff
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { generatePatientNumber } from '../utils/storage';
-import { googleSignIn, emailSignUp, emailSignIn, logoutGoogle } from '../services/firebaseAuth';
+import { googleSignIn, emailSignUp, emailSignIn, logoutGoogle, getFriendlyErrorMessage } from '../services/firebaseAuth';
 import { saveUserProfileToFirestore, getUserProfileFromFirestore } from '../services/firebaseFirestore';
 
 interface PatientAuthModalProps {
@@ -66,6 +67,10 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
   if (!isOpen) return null;
 
   const isAlreadyLoggedIn = !currentUser.isGuest && Boolean(currentUser.email);
+
+  const formatAuthErrorMessage = (err: any, defaultMsg: string): string => {
+    return getFriendlyErrorMessage(err, defaultMsg);
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,7 +117,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
       setIsLoading(false);
       const code = err?.code || '';
       setErrorCode(code);
-      setErrorMessage(err?.message || 'Email atau kata sandi tidak cocok. Silakan periksa kembali.');
+      setErrorMessage(formatAuthErrorMessage(err, 'Email atau kata sandi tidak cocok. Silakan periksa kembali.'));
     }
   };
 
@@ -159,7 +164,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
       setIsLoading(false);
       const code = err?.code || '';
       setErrorCode(code);
-      setErrorMessage(err?.message || 'Gagal mendaftar akun. Silakan coba lagi.');
+      setErrorMessage(formatAuthErrorMessage(err, 'Gagal mendaftar akun. Silakan coba lagi.'));
     }
   };
 
@@ -209,7 +214,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
       setIsLoading(false);
       const code = err?.code || '';
       setErrorCode(code);
-      setErrorMessage(err?.message || 'Gagal masuk dengan akun Google.');
+      setErrorMessage(formatAuthErrorMessage(err, 'Gagal masuk dengan akun Google.'));
     }
   };
 
@@ -332,10 +337,18 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
           )}
 
           {errorMessage && (
-            <div className="p-3.5 mb-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 text-xs space-y-2 animate-shake">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <div className="flex-1 font-medium">{errorMessage}</div>
+            <div className={`p-3.5 mb-3.5 rounded-2xl text-xs space-y-2 animate-shake border ${
+              errorMessage.includes('Koneksi internet atau server sedang bermasalah')
+                ? 'bg-amber-50/90 border-amber-300 text-amber-900 shadow-xs'
+                : 'bg-rose-50 border-rose-200 text-rose-800'
+            }`}>
+              <div className="flex items-start gap-2.5">
+                {errorMessage.includes('Koneksi internet atau server sedang bermasalah') ? (
+                  <WifiOff className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                )}
+                <div className="flex-1 font-medium leading-relaxed">{errorMessage}</div>
               </div>
 
               {/* Action buttons based on error type */}
@@ -389,7 +402,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
                 </div>
               )}
 
-              {errorCode === 'auth/network-request-failed' && (
+              {(errorCode === 'auth/network-request-failed' || errorMessage.includes('Koneksi internet atau server sedang bermasalah')) && (
                 <div className="pt-1 flex justify-end">
                   <button
                     type="button"
@@ -397,7 +410,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
                       setErrorMessage('');
                       setErrorCode(null);
                     }}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-stone-800 text-white rounded-lg font-bold text-[11px] hover:bg-stone-700 transition cursor-pointer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-900 text-white rounded-lg font-bold text-[11px] hover:bg-amber-800 transition cursor-pointer"
                   >
                     <RefreshCw className="w-3 h-3" />
                     <span>Coba Ulang</span>
