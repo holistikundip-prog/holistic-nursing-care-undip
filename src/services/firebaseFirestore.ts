@@ -10,9 +10,7 @@ import {
   collection,
   query,
   where,
-  onSnapshot,
-  enableNetwork,
-  disableNetwork
+  onSnapshot
 } from 'firebase/firestore';
 import { auth, getFriendlyErrorMessage } from './firebaseAuth';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -20,8 +18,9 @@ import { UserProfile, Appointment, ClinicalProgressNote } from '../types';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// DIPERBAIKI: Dipaksa menggunakan database default agar langsung cocok dengan konsol Firebase Anda
-export const db = getFirestore(app);
+// DIPERBAIKI: Mengambil ID database kustom secara dinamis dari file config AI Studio
+const databaseId = (firebaseConfig as any).firestoreDatabaseId || (firebaseConfig as any).databaseId || '(default)';
+export const db = databaseId && databaseId !== '(default)' ? getFirestore(app, databaseId) : getFirestore(app);
 
 export enum OperationType {
   CREATE = 'create',
