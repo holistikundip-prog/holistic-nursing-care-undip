@@ -18,7 +18,7 @@ export function isGmailConnected(): boolean {
   return !!localStorage.getItem('gmail_access_token');
 }
 
-// Fungsi pembantu Base64 murni Browser (Aman untuk Vercel & Vite)
+// Fungsi pembantu Base64 URL Safe yang kompatibel dengan Browser & Node.js Build
 function utf8ToBase64Url(str: string): string {
   const bytes = new TextEncoder().encode(str);
   let binary = '';
@@ -26,7 +26,11 @@ function utf8ToBase64Url(str: string): string {
   for (let i = 0; i < len; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
-  const base64 = window.btoa(binary);
+  
+  const base64 = typeof window !== 'undefined' && window.btoa 
+    ? window.btoa(binary) 
+    : globalThis.btoa ? globalThis.btoa(binary) : '';
+
   return base64
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
@@ -41,7 +45,7 @@ export function connectGmail(): Promise<string> {
     }
 
     const loadGIS = () => {
-      const win = window as any;
+      const win = window as unknown as Record<string, any>;
       if (!win.google?.accounts?.oauth2) {
         const script = document.createElement('script');
         script.src = 'https://accounts.google.com/gsi/client';
@@ -56,7 +60,7 @@ export function connectGmail(): Promise<string> {
 
     const triggerAuth = () => {
       try {
-        const win = window as any;
+        const win = window as unknown as Record<string, any>;
         const client = win.google.accounts.oauth2.initTokenClient({
           client_id: CLIENT_ID,
           scope: SCOPES,
@@ -74,7 +78,7 @@ export function connectGmail(): Promise<string> {
           },
         });
         client.requestAccessToken();
-      } catch (err: any) {
+      } catch (err: unknown) {
         reject(err);
       }
     };
@@ -118,8 +122,9 @@ export async function sendGmailMessage(
 
     const result = await res.json();
     return { success: true, messageId: result.id };
-  } catch (e: any) {
-    return { success: false, error: e?.message || 'Terjadi kesalahan jaringan saat menghubungi server Gmail.' };
+  } catch (e: unknown) {
+    const errorMsg = e instanceof Error ? e.message : 'Terjadi kesalahan jaringan saat menghubungi server Gmail.';
+    return { success: false, error: errorMsg };
   }
 }
 
@@ -143,6 +148,6 @@ export async function listGmailMessages(
   }
 }
 
-// Export Alias
+// Export Aliases untuk kompatibilitas fungsi lama
 export const sendGmailNotification = sendGmailMessage;
 export const authenticateGmail = connectGmail;
