@@ -24,13 +24,74 @@ export interface DriveUploadOptions {
 const CLINIC_FOLDER_NAME = 'Holistic Nursing Care UNDIP - Rekam Medis & Arsip';
 
 /**
- * Searches or creates the default root clinic folder in Google Drive
+ * Memeriksa apakah Google Drive terhubung di browser
+ */
+export function isDriveConnected(): boolean {
+  if (typeof window === 'undefined') return false;
+  return !!localStorage.getItem('google_drive_access_token');
+}
+
+/**
+ * Membuka Popup OAuth Google Drive untuk otorisasi
+ */
+export function connectDrive(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined') {
+      reject(new Error('Window Object Tidak Ditemukan.'));
+      return;
+    }
+
+    const loadGIS = () => {
+      const win = window as unknown as Record<string, any>;
+      if (!win.google?.accounts?.oauth2) {
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.onload = () => triggerAuth();
+        script.onerror = () => reject(new Error('Gagal memuat Google OAuth SDK'));
+        document.body.appendChild(script);
+      } else {
+        triggerAuth();
+      }
+    };
+
+    const triggerAuth = () => {
+      try {
+        const win = window as unknown as Record<string, any>;
+        const client = win.google.accounts.oauth2.initTokenClient({
+          client_id: '502787877148-vk6hfg5tquc3tnsvhkf3de11v0as9e97.apps.googleusercontent.com',
+          scope: 'https://www.googleapis.com/auth/drive.file',
+          callback: (response: any) => {
+            if (response.error) {
+              reject(new Error(response.error_description || response.error));
+              return;
+            }
+            if (response.access_token) {
+              localStorage.setItem('google_drive_access_token', response.access_token);
+              resolve(response.access_token);
+            } else {
+              reject(new Error('Token OAuth Google Drive tidak ditemukan.'));
+            }
+          },
+        });
+        client.requestAccessToken();
+      } catch (err: unknown) {
+        reject(err);
+      }
+    };
+
+    loadGIS();
+  });
+}
+
+/**
+ * Mencari atau membuat folder root klinik di Google Drive
  */
 export async function getOrCreateClinicFolder(accessToken: string): Promise<string | null> {
   try {
     if (!accessToken) return null;
 
-    // 1. Search for existing folder
+    // 1. Cari folder yang sudah ada
     const searchRes = await fetch(
       `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(
         `mimeType='application/vnd.google-apps.folder' and name='${CLINIC_FOLDER_NAME}' and trashed=false`
@@ -47,7 +108,7 @@ export async function getOrCreateClinicFolder(accessToken: string): Promise<stri
       }
     }
 
-    // 2. Create if not found
+    // 2. Buat folder baru jika belum ada
     const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
       method: 'POST',
       headers: {
@@ -74,7 +135,7 @@ export async function getOrCreateClinicFolder(accessToken: string): Promise<stri
 }
 
 /**
- * Lists files from Google Drive
+ * Menampilkan daftar file dari Google Drive
  */
 export async function listDriveFiles(
   accessToken: string,
@@ -115,7 +176,7 @@ export async function listDriveFiles(
 }
 
 /**
- * Uploads a text/JSON/Markdown file to Google Drive using multipart upload
+ * Unggah file Teks / JSON / Markdown ke Google Drive menggunakan Multipart Upload
  */
 export async function uploadFileToDrive(
   accessToken: string,
@@ -170,14 +231,15 @@ export async function uploadFileToDrive(
 
     const file = await response.json();
     return { success: true, file };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : 'Gagal mengunggah file ke Google Drive';
     console.error('Error uploading file to Drive:', err);
-    return { success: false, error: err?.message || 'Gagal mengunggah file ke Google Drive' };
+    return { success: false, error: errorMsg };
   }
 }
 
 /**
- * Creates a full JSON Backup file of the database in Google Drive
+ * Membuat file Cadangan Database JSON penuh ke Google Drive
  */
 export async function backupDatabaseToDrive(
   accessToken: string,
@@ -212,7 +274,7 @@ export async function backupDatabaseToDrive(
 }
 
 /**
- * Exports single appointment report into Google Drive
+ * Ekspor E-Tiket Reservasi Tunggal ke Google Drive
  */
 export async function exportAppointmentToDrive(
   accessToken: string,
@@ -257,7 +319,7 @@ ${appointment.notes ? `- **Keluhan/Catatan:** ${appointment.notes}` : ''}
 }
 
 /**
- * Exports Clinical Progress Notes (SOAP) compilation for a patient into Google Drive
+ * Ekspor Catatan Rekam Medis SOAP ke Google Drive
  */
 export async function exportClinicalNotesToDrive(
   accessToken: string,
@@ -314,7 +376,17 @@ export async function exportClinicalNotesToDrive(
 }
 
 /**
- * Deletes a file from Google Drive
+ * Ekspor Catatan Perkembangan Klinis Tunggal
+ */
+export async function exportProgressNoteToDrive(
+  accessToken: string,
+  noteData: any
+): Promise<{ success: boolean; file?: DriveFileItem; error?: string }> {
+  return exportAppointmentToDrive(accessToken, noteData);
+}
+
+/**
+ * Menghapus file dari Google Drive
  */
 export async function deleteDriveFile(
   accessToken: string,
@@ -336,8 +408,9 @@ export async function deleteDriveFile(
     }
 
     return { success: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errorMsg = err instanceof Error ? err.message : 'Gagal menghapus file dari Google Drive';
     console.error('Error deleting Drive file:', err);
-    return { success: false, error: err?.message || 'Gagal menghapus file dari Google Drive' };
+    return { success: false, error: errorMsg };
   }
 }
