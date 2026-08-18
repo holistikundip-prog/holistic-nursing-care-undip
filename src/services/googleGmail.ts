@@ -18,7 +18,6 @@ export function isGmailConnected(): boolean {
   return !!localStorage.getItem('gmail_access_token');
 }
 
-// Mengubah String UTF-8 menjadi Base64 URL Safe tanpa unescape()
 function utf8ToBase64Url(str: string): string {
   const encoder = new TextEncoder();
   const uint8Array = encoder.encode(str);
@@ -142,3 +141,7 @@ export async function listGmailMessages(
     return [];
   }
 }
+
+// Fallback Alias
+export const sendGmailNotification = sendGmailMessage;
+export const authenticateGmail = connectGmail;
