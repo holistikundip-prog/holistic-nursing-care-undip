@@ -1,0 +1,88 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'holistikundip@gmail.com' ||
+        (request.auth.token.email != null && request.auth.token.email.matches('.*undip.*')) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidUser(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.email is string && data.email.size() > 0 && data.email.size() <= 100;
+    }
+
+    function isValidAppointment(data) {
+      return data.bookingCode is string && data.bookingCode.size() <= 50 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.therapyId is string && data.therapyId.size() <= 100 &&
+             data.date is string && data.date.size() <= 30 &&
+             data.status in ['Menunggu', 'Terjadwal', 'Selesai', 'Dibatalkan'];
+    }
+
+    function isValidProgressNote(data) {
+      return data.patientId is string && data.patientId.size() <= 128 &&
+             data.patientName is string && data.patientName.size() <= 100 &&
+             data.therapyName is string && data.therapyName.size() <= 150 &&
+             data.visitDate is string && data.visitDate.size() <= 30;
+    }
+
+    // User Profiles collection
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isSignedIn() && (resource.data.id == request.auth.uid || resource.data.email == request.auth.token.email || isAdmin());
+      allow create: if isSignedIn() && (request.auth.uid == userId || request.auth.uid == incoming().id) && isValidUser(incoming());
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin()) && isValidUser(incoming());
+      allow delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Appointments collection
+    match /appointments/{appointmentId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.userEmail == request.auth.token.email || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.userEmail == request.auth.token.email || isAdmin());
+      allow create: if isSignedIn() && (incoming().userId == request.auth.uid || isAdmin()) && isValidAppointment(incoming());
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.userEmail == request.auth.token.email || isAdmin()) && isValidAppointment(incoming());
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // Clinical Progress Notes collection
+    match /clinical_progress_notes/{noteId} {
+      allow get: if isSignedIn() && (resource.data.patientId == request.auth.uid || resource.data.patientEmail == request.auth.token.email || isAdmin());
+      allow list: if isSignedIn() && (resource.data.patientId == request.auth.uid || resource.data.patientEmail == request.auth.token.email || isAdmin());
+      allow create: if isSignedIn() && (isAdmin() || request.auth.token.email != null) && isValidProgressNote(incoming());
+      allow update: if isSignedIn() && isAdmin() && isValidProgressNote(incoming());
+      allow delete: if isSignedIn() && isAdmin();
+    }
+
+    // Admins registry
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

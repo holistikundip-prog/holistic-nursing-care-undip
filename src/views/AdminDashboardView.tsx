@@ -24,6 +24,7 @@ import {
 import { Appointment, Therapy, Video as VideoType, AppointmentStatus, UserProfile, ClinicalProgressNote } from '../types';
 import { formatIndonesianDate } from '../utils/storage';
 import { GoogleSheetsCard } from '../components/GoogleSheetsCard';
+import { GoogleWorkspaceHubCard } from '../components/GoogleWorkspaceHubCard';
 import { ClinicalProgressNotesManager } from '../components/ClinicalProgressNotesManager';
 
 interface AdminDashboardViewProps {
@@ -39,12 +40,16 @@ interface AdminDashboardViewProps {
   onUpdateAppointmentStatus: (id: string, newStatus: AppointmentStatus) => void;
   onDeleteAppointment: (id: string) => void;
   onAddTherapy: (therapy: Therapy) => void;
+  onUpdateTherapy?: (therapy: Therapy) => void;
   onDeleteTherapy: (id: string) => void;
   onAddVideo: (video: VideoType) => void;
+  onUpdateVideo?: (video: VideoType) => void;
   onDeleteVideo: (id: string) => void;
   onAddProgressNote: (note: ClinicalProgressNote) => void;
   onUpdateProgressNote: (note: ClinicalProgressNote) => void;
   onDeleteProgressNote: (id: string) => void;
+  onOpenGmailModal?: () => void;
+  onOpenDriveModal?: () => void;
 }
 
 export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
@@ -60,12 +65,16 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   onUpdateAppointmentStatus,
   onDeleteAppointment,
   onAddTherapy,
+  onUpdateTherapy,
   onDeleteTherapy,
   onAddVideo,
+  onUpdateVideo,
   onDeleteVideo,
   onAddProgressNote,
   onUpdateProgressNote,
-  onDeleteProgressNote
+  onDeleteProgressNote,
+  onOpenGmailModal = () => {},
+  onOpenDriveModal = () => {}
 }) => {
   const [adminTab, setAdminTab] = useState<'appointments' | 'progressNotes' | 'patients' | 'therapies' | 'videos'>('appointments');
   const [selectedPatientForProgressFilter, setSelectedPatientForProgressFilter] = useState<string | null>(null);
@@ -267,13 +276,17 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Google Sheets Integration Card */}
-      <GoogleSheetsCard
+      {/* Google Workspace Suite Hub (Sheets, Gmail, Drive) */}
+      <GoogleWorkspaceHubCard
         googleUser={googleUser}
         accessToken={accessToken}
         onAuthSuccess={onGoogleAuthSuccess}
         onLogout={onGoogleLogout}
         appointments={appointments}
+        progressNotes={progressNotes}
+        therapies={therapies}
+        onOpenGmailModal={onOpenGmailModal}
+        onOpenDriveModal={onOpenDriveModal}
       />
 
       {/* Admin Navigation Tabs */}
@@ -515,6 +528,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
           therapies={therapies}
           initialSelectedPatient={selectedPatientForProgressFilter}
           onClearInitialPatient={() => setSelectedPatientForProgressFilter('Semua')}
+          googleAccessToken={accessToken}
         />
       )}
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   FileText,
   Plus,
@@ -28,10 +28,16 @@ import {
   Phone,
   Mail,
   History,
-  X
+  X,
+  HardDrive,
+  Send,
+  ExternalLink
 } from 'lucide-react';
 import { ClinicalProgressNote, Appointment, UserProfile, Therapy } from '../types';
-import { formatIndonesianDate, getRegisteredPatients } from '../utils/storage';
+import { formatIndonesianDate } from '../utils/storage';
+import { getAllUserProfilesFromFirestore } from '../services/firebaseFirestore';
+import { sendClinicalProgressNoteEmail } from '../services/googleGmail';
+import { exportClinicalNotesToDrive } from '../services/googleDrive';
 
 interface ClinicalProgressNotesManagerProps {
   progressNotes: ClinicalProgressNote[];
@@ -42,6 +48,7 @@ interface ClinicalProgressNotesManagerProps {
   therapies: Therapy[];
   initialSelectedPatient?: string | null;
   onClearInitialPatient?: () => void;
+  googleAccessToken?: string | null;
 }
 
 interface PatientGroup {
@@ -73,7 +80,8 @@ export const ClinicalProgressNotesManager: React.FC<ClinicalProgressNotesManager
   appointments,
   therapies,
   initialSelectedPatient,
-  onClearInitialPatient
+  onClearInitialPatient,
+  googleAccessToken
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPatientFilter, setSelectedPatientFilter] = useState<string>(initialSelectedPatient || 'Semua');
@@ -84,6 +92,8 @@ export const ClinicalProgressNotesManager: React.FC<ClinicalProgressNotesManager
   const [detailNote, setDetailNote] = useState<ClinicalProgressNote | null>(null);
   const [noteToDelete, setNoteToDelete] = useState<ClinicalProgressNote | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isSendingNoteEmail, setIsSendingNoteEmail] = useState(false);
+  const [isExportingNoteDrive, setIsExportingNoteDrive] = useState(false);
 
   // Form State
   const [formPatientId, setFormPatientId] = useState<string>('');
@@ -103,10 +113,19 @@ export const ClinicalProgressNotesManager: React.FC<ClinicalProgressNotesManager
   const [formPulse, setFormPulse] = useState('78 x/menit');
   const [formRR, setFormRR] = useState('18 x/menit');
   const [formPainScale, setFormPainScale] = useState<number>(3);
+  const [registeredPatientsList, setRegisteredPatientsList] = useState<UserProfile[]>([]);
 
-  // Registered Patients List for seamless profile linkage
-  const registeredPatientsList = useMemo(() => {
-    return getRegisteredPatients();
+  // Fetch registered patients directly from Cloud Firestore
+  useEffect(() => {
+    let isMounted = true;
+    getAllUserProfilesFromFirestore().then((patients) => {
+      if (isMounted && patients && patients.length > 0) {
+        setRegisteredPatientsList(patients);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Unique list of patients for filter
@@ -1462,6 +1481,60 @@ export const ClinicalProgressNotesManager: React.FC<ClinicalProgressNotesManager
                 <span className="text-[10px] text-stone-400 block uppercase">Perawat Penanggung Jawab:</span>
                 <span className="font-bold text-stone-900 text-sm block mt-0.5">{detailNote.nurseName}</span>
                 <span className="text-[10px] text-stone-500">Klinik Keperawatan Holistik</span>
+              </div>
+            </div>
+
+            {/* Workspace Integration: Gmail & Google Drive */}
+            <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">
+                Integrasi Google Workspace (Gmail & Drive)
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!googleAccessToken) {
+                      setToastMessage('Silakan hubungkan akun Google untuk mengirim via Gmail.');
+                      return;
+                    }
+                    setIsSendingNoteEmail(true);
+                    const res = await sendClinicalProgressNoteEmail(googleAccessToken, detailNote);
+                    setIsSendingNoteEmail(false);
+                    if (res.success) {
+                      setToastMessage(`Catatan SOAP berhasil dikirim ke Gmail (${detailNote.patientEmail || 'Pasien'})!`);
+                    } else {
+                      setToastMessage(res.error || 'Gagal mengirim email.');
+                    }
+                  }}
+                  disabled={isSendingNoteEmail}
+                  className="p-2.5 bg-white hover:bg-rose-50 border border-stone-200 hover:border-rose-300 rounded-xl text-xs font-bold text-rose-900 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+                >
+                  <Mail className="w-4 h-4 text-rose-600" />
+                  <span>{isSendingNoteEmail ? 'Mengirim...' : 'Kirim Catatan via Gmail'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!googleAccessToken) {
+                      setToastMessage('Silakan hubungkan akun Google untuk menyimpan ke Google Drive.');
+                      return;
+                    }
+                    setIsExportingNoteDrive(true);
+                    const res = await exportClinicalNotesToDrive(googleAccessToken, [detailNote], detailNote.patientName);
+                    setIsExportingNoteDrive(false);
+                    if (res.success) {
+                      setToastMessage(`Lembar SOAP berhasil disimpan ke Google Drive (${res.file?.name})!`);
+                    } else {
+                      setToastMessage(res.error || 'Gagal menyimpan ke Google Drive.');
+                    }
+                  }}
+                  disabled={isExportingNoteDrive}
+                  className="p-2.5 bg-white hover:bg-sky-50 border border-stone-200 hover:border-sky-300 rounded-xl text-xs font-bold text-sky-900 transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+                >
+                  <HardDrive className="w-4 h-4 text-sky-600" />
+                  <span>{isExportingNoteDrive ? 'Menyimpan...' : 'Simpan ke Google Drive'}</span>
+                </button>
               </div>
             </div>
 
