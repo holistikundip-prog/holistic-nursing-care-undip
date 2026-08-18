@@ -19,8 +19,9 @@ import firebaseConfig from '../../firebase-applet-config.json';
 import { UserProfile, Appointment, ClinicalProgressNote } from '../types';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const databaseId = (firebaseConfig as any).firestoreDatabaseId || (firebaseConfig as any).databaseId || '(default)';
-export const db = databaseId && databaseId !== '(default)' ? getFirestore(app, databaseId) : getFirestore(app);
+
+// DIPERBAIKI: Dipaksa menggunakan database default agar langsung cocok dengan konsol Firebase Anda
+export const db = getFirestore(app);
 
 export enum OperationType {
   CREATE = 'create',
@@ -242,7 +243,6 @@ export function subscribeAppointments(
       snapshot.forEach((docSnap) => {
         list.push(docSnap.data() as Appointment);
       });
-      // Sort newest created first
       list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
       onUpdate(list);
     },
