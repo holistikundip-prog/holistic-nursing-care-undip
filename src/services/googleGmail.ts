@@ -18,14 +18,15 @@ export function isGmailConnected(): boolean {
   return !!localStorage.getItem('gmail_access_token');
 }
 
+// Fungsi pembantu Base64 murni Browser (Aman untuk Vercel & Vite)
 function utf8ToBase64Url(str: string): string {
-  const encoder = new TextEncoder();
-  const uint8Array = encoder.encode(str);
+  const bytes = new TextEncoder().encode(str);
   let binary = '';
-  for (let i = 0; i < uint8Array.length; i++) {
-    binary += String.fromCharCode(uint8Array[i]);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
   }
-  const base64 = typeof btoa !== 'undefined' ? btoa(binary) : Buffer.from(binary, 'binary').toString('base64');
+  const base64 = window.btoa(binary);
   return base64
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
@@ -142,6 +143,6 @@ export async function listGmailMessages(
   }
 }
 
-// Fallback Alias
+// Export Alias
 export const sendGmailNotification = sendGmailMessage;
 export const authenticateGmail = connectGmail;
