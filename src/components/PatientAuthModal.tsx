@@ -86,7 +86,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
       const email = loginEmail.trim().toLowerCase();
       const pass = loginPassword.trim();
 
-      const found = registeredPatients.find(
+      let found = registeredPatients.find(
         p => p.email && p.email.toLowerCase() === email
       );
 
@@ -102,8 +102,25 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
         setIsLoading(false);
         onClose();
       } else {
+        // Otomatis daftarkan akun baru jika belum ada di lokal
+        const newPatient: UserProfile = {
+          id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          name: email.split('@')[0],
+          patientNumber: generatePatientNumber(),
+          phone: '08xxxxxxxxxx',
+          email: email,
+          password: pass,
+          address: 'Semarang',
+          joinedDate: new Date().toISOString().split('T')[0],
+          medicalNotes: '',
+          isGuest: false
+        };
+
+        saveRegisteredPatient(newPatient);
+        saveUser(newPatient);
+        onPatientAuthSuccess(newPatient);
         setIsLoading(false);
-        setErrorMessage('Akun pasien dengan email ini belum terdaftar di perangkat. Silakan pilih "Daftar Baru".');
+        onClose();
       }
     }, 300);
   };
@@ -182,7 +199,6 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
     removeRegisteredPatient(patient.id || patient.email);
     setPatientToDelete(null);
     
-    // If the deleted account was the currently active user, switch to guest / another account
     if (currentUser.id === patient.id || currentUser.email === patient.email) {
       const guest = createGuestPatient();
       saveUser(guest);
@@ -289,7 +305,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
           </p>
         </div>
 
-        {/* Tab Buttons (Hidden when verifying specific account) */}
+        {/* Tab Buttons */}
         {!patientToVerify && (
           <div className="flex border-b border-stone-200 bg-stone-50">
             <button
@@ -642,7 +658,6 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
                               </button>
                             )}
 
-                            {/* Option to Delete/Clear this profile from public/shared device */}
                             <button
                               type="button"
                               onClick={() => setPatientToDelete(patient)}
@@ -657,7 +672,6 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
                     })}
                   </div>
 
-                  {/* Confirmation for deleting patient profile from device */}
                   {patientToDelete && (
                     <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-rose-900 space-y-2 animate-fadeIn">
                       <div className="flex items-start gap-2">
@@ -688,7 +702,6 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
                     </div>
                   )}
 
-                  {/* Log Out & Clear Session Button */}
                   {!currentUser.isGuest && (
                     <div className="pt-2 border-t border-stone-200">
                       <button
