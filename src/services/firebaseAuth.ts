@@ -54,6 +54,68 @@ export const initAuth = (
   });
 };
 
+export class FirebaseAuthError extends Error {
+  code: string;
+  constructor(message: string, code: string) {
+    super(message);
+    this.name = 'FirebaseAuthError';
+    this.code = code;
+  }
+}
+
+export function parseFirebaseAuthError(error: any, fallbackMessage: string): FirebaseAuthError {
+  const code = error?.code || '';
+  let message = fallbackMessage;
+
+  switch (code) {
+    case 'auth/popup-blocked':
+      message = 'Jendela pop-up Google diblokir oleh peramban (browser). Harap izinkan pop-up untuk situs ini atau buka aplikasi di tab baru jika Anda menggunakan pratinjau.';
+      break;
+    case 'auth/popup-closed-by-user':
+      message = 'Jendela masuk Google ditutup sebelum proses selesai. Silakan coba kembali.';
+      break;
+    case 'auth/cancelled-popup-request':
+      message = 'Permintaan masuk Google sebelumnya dibatalkan karena ada permintaan baru.';
+      break;
+    case 'auth/network-request-failed':
+      message = 'Koneksi jaringan ke Firebase terputus (auth/network-request-failed). Pastikan koneksi internet aktif atau coba beberapa saat lagi.';
+      break;
+    case 'auth/email-already-in-use':
+      message = 'Email ini sudah terdaftar. Silakan pilih tab "Masuk" untuk melanjutkan.';
+      break;
+    case 'auth/invalid-credential':
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+      message = 'Email atau kata sandi tidak cocok. Jika Anda belum memiliki akun, silakan pilih tab "Daftar Baru".';
+      break;
+    case 'auth/invalid-email':
+      message = 'Format alamat email tidak valid. Pastikan penulisan email sudah benar.';
+      break;
+    case 'auth/weak-password':
+      message = 'Kata sandi terlalu lemah. Gunakan minimal 6 karakter.';
+      break;
+    case 'auth/unauthorized-domain':
+      message = 'Domain aplikasi ini belum diizinkan di Firebase Authentication. Anda dapat menggunakan login Email & Kata Sandi atau menambahkan domain di konsol Firebase.';
+      break;
+    case 'auth/too-many-requests':
+      message = 'Terlalu banyak percobaan gagal. Akses sementara dibatasi demi keamanan, silakan coba lagi beberapa saat.';
+      break;
+    case 'auth/user-disabled':
+      message = 'Akun ini telah dinonaktifkan oleh administrator.';
+      break;
+    case 'auth/operation-not-allowed':
+      message = 'Metode otentikasi ini belum diaktifkan di Firebase Console.';
+      break;
+    default:
+      if (error?.message) {
+        message = error.message;
+      }
+      break;
+  }
+
+  return new FirebaseAuthError(message, code);
+}
+
 export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
   try {
     isSigningIn = true;
@@ -67,7 +129,7 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     return { user: result.user, accessToken };
   } catch (error: any) {
     console.error('Google Sign in error:', error);
-    throw error;
+    throw parseFirebaseAuthError(error, 'Gagal masuk dengan akun Google.');
   } finally {
     isSigningIn = false;
   }
@@ -85,9 +147,13 @@ export const emailSignUp = async (
     const user = userCredential.user;
 
     // Update display name in Firebase Auth
-    await updateProfile(user, {
-      displayName: name.trim()
-    });
+    try {
+      await updateProfile(user, {
+        displayName: name.trim()
+      });
+    } catch (profErr) {
+      console.warn('Could not update displayName profile:', profErr);
+    }
 
     const profile: UserProfile = {
       id: user.uid,
@@ -105,15 +171,7 @@ export const emailSignUp = async (
     return { user, profile };
   } catch (error: any) {
     console.error('Email sign up error:', error);
-    let errorMsg = 'Gagal mendaftarkan akun. Silakan periksa kembali data Anda.';
-    if (error.code === 'auth/email-already-in-use') {
-      errorMsg = 'Email ini sudah terdaftar. Silakan pilih tab "Masuk".';
-    } else if (error.code === 'auth/invalid-email') {
-      errorMsg = 'Format email tidak valid.';
-    } else if (error.code === 'auth/weak-password') {
-      errorMsg = 'Kata sandi terlalu lemah (minimal 6 karakter).';
-    }
-    throw new Error(errorMsg);
+    throw parseFirebaseAuthError(error, 'Gagal mendaftarkan akun. Silakan periksa kembali data Anda.');
   }
 };
 
@@ -126,15 +184,7 @@ export const emailSignIn = async (
     return { user: userCredential.user };
   } catch (error: any) {
     console.error('Email sign in error:', error);
-    let errorMsg = 'Email atau kata sandi tidak cocok. Silakan coba lagi.';
-    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-      errorMsg = 'Akun dengan email atau kata sandi ini tidak ditemukan.';
-    } else if (error.code === 'auth/wrong-password') {
-      errorMsg = 'Kata sandi tidak sesuai untuk akun ini.';
-    } else if (error.code === 'auth/invalid-email') {
-      errorMsg = 'Format email tidak valid.';
-    }
-    throw new Error(errorMsg);
+    throw parseFirebaseAuthError(error, 'Email atau kata sandi tidak cocok. Silakan coba lagi.');
   }
 };
 

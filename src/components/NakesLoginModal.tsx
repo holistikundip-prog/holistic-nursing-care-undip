@@ -8,7 +8,8 @@ import {
   AlertCircle,
   X,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  ExternalLink
 } from 'lucide-react';
 import { googleSignIn } from '../services/firebaseAuth';
 
@@ -47,6 +48,7 @@ export const NakesLoginModal: React.FC<NakesLoginModalProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isPopupBlocked, setIsPopupBlocked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
@@ -54,6 +56,7 @@ export const NakesLoginModal: React.FC<NakesLoginModalProps> = ({
 
   const handleGoogleLogin = async () => {
     setErrorMessage('');
+    setIsPopupBlocked(false);
     setIsGoogleLoading(true);
     try {
       const result = await googleSignIn();
@@ -70,11 +73,13 @@ export const NakesLoginModal: React.FC<NakesLoginModalProps> = ({
     } catch (err: any) {
       console.error('Nakes Google login error:', err);
       setIsGoogleLoading(false);
-      setErrorMessage(
-        err?.message?.includes('popup-closed')
-          ? 'Jendela login Google ditutup sebelum selesai.'
-          : 'Gagal login dengan Google. Pastikan izin akses telah diberikan.'
-      );
+      const code = err?.code || '';
+      if (code === 'auth/popup-blocked') {
+        setIsPopupBlocked(true);
+        setErrorMessage('Jendela pop-up login Google diblokir oleh browser. Silakan buka aplikasi di tab baru atau izinkan pop-up.');
+      } else {
+        setErrorMessage(err?.message || 'Gagal login dengan Google. Pastikan izin akses telah diberikan.');
+      }
     }
   };
 
@@ -203,9 +208,23 @@ export const NakesLoginModal: React.FC<NakesLoginModalProps> = ({
           {/* Form Body */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {errorMessage && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 text-xs flex items-start gap-2 animate-shake">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <span>{errorMessage}</span>
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 text-xs space-y-2 animate-shake">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 font-medium">{errorMessage}</div>
+                </div>
+                {isPopupBlocked && (
+                  <div className="pt-1 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => window.open(window.location.href, '_blank')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-900 text-white rounded-lg font-bold text-[11px] hover:bg-stone-800 transition cursor-pointer"
+                    >
+                      <span>Buka di Tab Baru</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

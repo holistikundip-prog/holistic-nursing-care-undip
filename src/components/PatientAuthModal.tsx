@@ -15,7 +15,10 @@ import {
   ShieldCheck,
   LogOut,
   Database,
-  Check
+  Check,
+  ExternalLink,
+  ArrowRight,
+  RefreshCw
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { generatePatientNumber } from '../utils/storage';
@@ -56,6 +59,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
 
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -66,6 +70,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
+    setErrorCode(null);
     setSuccessMessage('');
     setIsLoading(true);
 
@@ -105,6 +110,8 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
     } catch (err: any) {
       console.error('Firebase login error:', err);
       setIsLoading(false);
+      const code = err?.code || '';
+      setErrorCode(code);
       setErrorMessage(err?.message || 'Email atau kata sandi tidak cocok. Silakan periksa kembali.');
     }
   };
@@ -112,6 +119,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
+    setErrorCode(null);
     setSuccessMessage('');
     setIsLoading(true);
 
@@ -149,12 +157,15 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
     } catch (err: any) {
       console.error('Firebase registration error:', err);
       setIsLoading(false);
+      const code = err?.code || '';
+      setErrorCode(code);
       setErrorMessage(err?.message || 'Gagal mendaftar akun. Silakan coba lagi.');
     }
   };
 
   const handleGoogleLogin = async () => {
     setErrorMessage('');
+    setErrorCode(null);
     setSuccessMessage('');
     setIsLoading(true);
 
@@ -196,11 +207,9 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
     } catch (err: any) {
       console.error('Google login error:', err);
       setIsLoading(false);
-      setErrorMessage(
-        err?.message?.includes('popup-closed')
-          ? 'Jendela masuk Google ditutup sebelum selesai.'
-          : err?.message || 'Gagal masuk dengan akun Google.'
-      );
+      const code = err?.code || '';
+      setErrorCode(code);
+      setErrorMessage(err?.message || 'Gagal masuk dengan akun Google.');
     }
   };
 
@@ -323,9 +332,78 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
           )}
 
           {errorMessage && (
-            <div className="p-3 mb-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 text-xs flex items-start gap-2 animate-shake">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <span>{errorMessage}</span>
+            <div className="p-3.5 mb-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 text-xs space-y-2 animate-shake">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="flex-1 font-medium">{errorMessage}</div>
+              </div>
+
+              {/* Action buttons based on error type */}
+              {errorCode === 'auth/email-already-in-use' && (
+                <div className="pt-1 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginEmail(regEmail);
+                      setMode('login');
+                      setErrorMessage('');
+                      setErrorCode(null);
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-800 text-white rounded-lg font-bold text-[11px] hover:bg-emerald-700 transition cursor-pointer"
+                  >
+                    <span>Beralih ke Tab Masuk</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+
+              {(errorCode === 'auth/invalid-credential' || errorCode === 'auth/user-not-found') && mode === 'login' && (
+                <div className="pt-1 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRegEmail(loginEmail);
+                      setMode('register');
+                      setErrorMessage('');
+                      setErrorCode(null);
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-800 text-white rounded-lg font-bold text-[11px] hover:bg-emerald-700 transition cursor-pointer"
+                  >
+                    <span>Daftar Akun Baru dengan Email Ini</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+
+              {errorCode === 'auth/popup-blocked' && (
+                <div className="pt-1 flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-rose-700 font-medium">Buka app di tab utama browser:</span>
+                  <button
+                    type="button"
+                    onClick={() => window.open(window.location.href, '_blank')}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-stone-900 text-white rounded-lg font-bold text-[11px] hover:bg-stone-800 transition cursor-pointer"
+                  >
+                    <span>Buka Tab Baru</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+
+              {errorCode === 'auth/network-request-failed' && (
+                <div className="pt-1 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setErrorMessage('');
+                      setErrorCode(null);
+                    }}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-stone-800 text-white rounded-lg font-bold text-[11px] hover:bg-stone-700 transition cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Coba Ulang</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
