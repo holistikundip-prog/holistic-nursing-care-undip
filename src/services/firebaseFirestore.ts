@@ -18,9 +18,8 @@ import firebaseConfig from '../../firebase-applet-config.json';
 import { UserProfile, Appointment, ClinicalProgressNote } from '../types';
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-
-// databaseId di-hardcode langsung ke ID database aktif Anda
-export const db = getFirestore(app, "ai-studio-holisticnursingc-41f2a8eb-ff7f-4984-b7f9-2f30fc8a3169");
+const databaseId = (firebaseConfig as any).firestoreDatabaseId || (firebaseConfig as any).databaseId || '(default)';
+export const db = databaseId && databaseId !== '(default)' ? getFirestore(app, databaseId) : getFirestore(app);
 
 export enum OperationType {
   CREATE = 'create',
@@ -214,6 +213,7 @@ export function subscribeAppointments(
       snapshot.forEach((docSnap) => {
         list.push(docSnap.data() as Appointment);
       });
+      // Sort newest created first
       list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
       onUpdate(list);
     },

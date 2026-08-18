@@ -34,9 +34,9 @@ interface GoogleDriveHubModalProps {
   onClose: () => void;
   accessToken: string | null;
   currentUser: UserProfile;
-  appointments: Appointment[];
-  progressNotes: ClinicalProgressNote[];
-  therapies: Therapy[];
+  appointments?: Appointment[];
+  progressNotes?: ClinicalProgressNote[];
+  therapies?: Therapy[];
   onAuthSuccess?: (user: any, token: string) => void;
 }
 
@@ -45,9 +45,9 @@ export const GoogleDriveHubModal: React.FC<GoogleDriveHubModalProps> = ({
   onClose,
   accessToken,
   currentUser,
-  appointments,
-  progressNotes,
-  therapies,
+  appointments = [],
+  progressNotes = [],
+  therapies = [],
   onAuthSuccess
 }) => {
   const [files, setFiles] = useState<DriveFileItem[]>([]);

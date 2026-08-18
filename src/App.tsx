@@ -705,21 +705,23 @@ export default function App() {
       <GmailHubModal
         isOpen={showGmailModal}
         onClose={() => setShowGmailModal(false)}
-        googleAccessToken={accessToken}
+        accessToken={accessToken}
         currentUser={user}
-        onRequireGoogleAuth={handleGoogleAuthSuccess}
+        appointments={appointments}
+        progressNotes={progressNotes}
+        onAuthSuccess={handleGoogleAuthSuccess}
       />
 
       {/* 10. Google Drive Cloud Hub Modal */}
       <GoogleDriveHubModal
         isOpen={showDriveModal}
         onClose={() => setShowDriveModal(false)}
-        googleAccessToken={accessToken}
+        accessToken={accessToken}
         currentUser={user}
         appointments={appointments}
         progressNotes={progressNotes}
         therapies={therapies}
-        onRequireGoogleAuth={handleGoogleAuthSuccess}
+        onAuthSuccess={handleGoogleAuthSuccess}
       />
     </div>
   );
