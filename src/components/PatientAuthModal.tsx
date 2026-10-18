@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { X, Mail, Lock, User, AlertCircle, Trash2 } from 'lucide-react';
-import { supabase } from '../supabaseClient';
 
 interface PatientAuthModalProps {
   isOpen: boolean;
@@ -47,33 +46,47 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = (props) => {
 
   // Ambil hanya akun yang TIDAK/BELUM di-soft delete
   const getActivePatients = () => {
-    const existingPatients = JSON.parse(localStorage.getItem('patients') || '[]');
-    return existingPatients.filter((p: any) => !p.isDeleted);
+    try {
+      const existingPatients = JSON.parse(localStorage.getItem('patients') || '[]');
+      return Array.isArray(existingPatients) ? existingPatients.filter((p: any) => !p?.isDeleted) : [];
+    } catch {
+      return [];
+    }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      const existingPatients = JSON.parse(localStorage.getItem('patients') || '[]');
+      let existingPatients: any[] = [];
+      try {
+        existingPatients = JSON.parse(localStorage.getItem('patients') || '[]');
+        if (!Array.isArray(existingPatients)) existingPatients = [];
+      } catch {
+        existingPatients = [];
+      }
 
       if (activeTab === 'login') {
-        // 1. Cari pasien berdasarkan email saja
+        // 1. Cari pasien berdasarkan email
         const index = existingPatients.findIndex(
-          (p: any) => p.email.toLowerCase() === email.toLowerCase()
+          (p: any) => p && p.email && p.email.toLowerCase() === email.toLowerCase()
         );
 
         if (index === -1) {
-          throw new Error('Email belum terdaftar. Silakan pilih "Daftar Baru".');
+          setError('Email belum terdaftar. Silakan pilih "Daftar Baru".');
+          setLoading(false);
+          return;
         }
 
         const patient = existingPatients[index];
 
         // 2. Cek kesesuaian password
         if (patient.password !== password) {
-          throw new Error('Password salah. Silakan coba lagi.');
+          setError('Password salah. Silakan coba lagi.');
+          setLoading(false);
+          return;
         }
 
         // 3. Restore akun jika sebelumnya di-soft delete
@@ -87,37 +100,23 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = (props) => {
       } else if (activeTab === 'register') {
         // Alur Registrasi
         const exists = existingPatients.some(
-          (p: any) => p.email.toLowerCase() === email.toLowerCase() && !p.isDeleted
+          (p: any) => p && p.email && p.email.toLowerCase() === email.toLowerCase() && !p.isDeleted
         );
 
         if (exists) {
-          throw new Error('Email sudah terdaftar. Silakan login.');
+          setError('Email sudah terdaftar. Silakan login.');
+          setLoading(false);
+          return;
         }
 
         const newPatient = {
           id: Date.now().toString(),
-          name,
-          email,
+          name: name.trim(),
+          email: email.trim(),
           password,
           isDeleted: false,
           createdAt: new Date().toISOString()
         };
-
-        // Simpan ke Supabase dengan try-catch terpisah agar tidak menggagalkan registrasi jika schema beda
-        try {
-          await supabase.from('appointments').insert([
-            {
-              booking_code: `BOOK-${Date.now()}`,
-              user_name: name,
-              user_email: email,
-              status: 'Terjadwal',
-              date: new Date().toISOString().split('T')[0],
-              time_slot: '09:00'
-            }
-          ]);
-        } catch (supabaseErr) {
-          console.warn('Proses sinkronisasi Supabase diabaikan:', supabaseErr);
-        }
 
         const updatedPatients = [...existingPatients, newPatient];
         localStorage.setItem('patients', JSON.stringify(updatedPatients));
@@ -126,44 +125,29 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = (props) => {
         handleClose();
       }
     } catch (err: any) {
-      const errorMsg = typeof err === 'string' ? err : err?.message || 'Terjadi kesalahan. Silakan coba lagi.';
-      setError(errorMsg);
+      setError('Gagal memproses pendaftaran. Silakan coba lagi.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleSoftDelete = (targetEmail: string) => {
-    const existingPatients = JSON.parse(localStorage.getItem('patients') || '[]');
-    
-    // Tandai akun sebagai isDeleted: true (Soft Delete)
-    const updatedPatients = existingPatients.map((p: any) => {
-      if (p.email.toLowerCase() === targetEmail.toLowerCase()) {
-        return { ...p, isDeleted: true };
-      }
-      return p;
-    });
-
-    localStorage.setItem('patients', JSON.stringify(updatedPatients));
-    // Re-render tab kelola akun
-    setEmail('');
-  };
-
-  const handleGoogleLogin = async () => {
-    setError('');
-    setLoading(true);
     try {
-      // Menggunakan OAuth Supabase sebagai pengganti Firebase
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-      });
+      const existingPatients = JSON.parse(localStorage.getItem('patients') || '[]');
+      if (Array.isArray(existingPatients)) {
+        const updatedPatients = existingPatients.map((p: any) => {
+          if (p && p.email && p.email.toLowerCase() === targetEmail.toLowerCase()) {
+            return { ...p, isDeleted: true };
+          }
+          return p;
+        });
 
-      if (error) throw error;
-    } catch (err: any) {
-      setError('Gagal login dengan Google. Silakan coba lagi.');
-    } finally {
-      setLoading(false);
+        localStorage.setItem('patients', JSON.stringify(updatedPatients));
+      }
+    } catch (e) {
+      console.warn('Soft delete error:', e);
     }
+    setEmail('');
   };
 
   const activePatients = getActivePatients();
@@ -221,83 +205,66 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = (props) => {
 
         {/* Form Login & Register */}
         {(activeTab === 'login' || activeTab === 'register') && (
-          <>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {activeTab === 'register' && (
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-700">Nama Lengkap</label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="text"
-                      required
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="John Doe"
-                      className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    />
-                  </div>
-                </div>
-              )}
-
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {activeTab === 'register' && (
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Email Pasien</label>
+                <label className="mb-1 block text-xs font-medium text-gray-700">Nama Lengkap</label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                   <input
-                    type="email"
+                    type="text"
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="nama@email.com"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Nama Lengkap Pasien"
                     className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                   />
                 </div>
               </div>
+            )}
 
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Kata Sandi (Password)</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  />
-                </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Email Pasien</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="nama@email.com"
+                  className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
               </div>
+            </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full rounded-lg bg-emerald-700 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-50"
-              >
-                {loading
-                  ? 'Memproses...'
-                  : activeTab === 'login'
-                  ? 'Masuk ke Jadwal Saya'
-                  : 'Daftar Sekarang'}
-              </button>
-            </form>
-
-            <div className="relative my-6 text-center text-xs text-gray-400">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-700">Kata Sandi (Password)</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-4 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
               </div>
-              <span className="relative bg-white px-2">ATAU</span>
             </div>
 
             <button
-              onClick={handleGoogleLogin}
+              type="submit"
               disabled={loading}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="w-full rounded-lg bg-emerald-700 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-50 cursor-pointer"
             >
-              Masuk dengan Google
+              {loading
+                ? 'Memproses...'
+                : activeTab === 'login'
+                ? 'Masuk ke Jadwal Saya'
+                : 'Daftar Sekarang'}
             </button>
-          </>
+          </form>
         )}
 
         {/* Tab Kelola Akun */}
@@ -321,13 +288,13 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = (props) => {
                         safeSuccess(patient);
                         handleClose();
                       }}
-                      className="rounded bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-200"
+                      className="rounded bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-200 cursor-pointer"
                     >
                       Pilih
                     </button>
                     <button
                       onClick={() => handleSoftDelete(patient.email)}
-                      className="rounded bg-red-100 p-1 text-red-600 hover:bg-red-200"
+                      className="rounded bg-red-100 p-1 text-red-600 hover:bg-red-200 cursor-pointer"
                       title="Hapus dari Perangkat"
                     >
                       <Trash2 className="h-4 w-4" />
