@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import { X, Mail, Lock, User, AlertCircle, Trash2 } from 'lucide-react';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { auth } from '../firebaseConfig'; // Sesuaikan path config Anda
 import { supabase } from '../supabaseClient';
 interface PatientAuthModalProps {
   isOpen: boolean;
