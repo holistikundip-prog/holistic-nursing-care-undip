@@ -20,7 +20,7 @@ import { Therapy, LocationItem, Appointment, UserProfile } from '../types';
 import { GENERATE_TIME_SLOTS } from '../data/mockData';
 import { generateBookingCode, getIndonesianDayName, formatIndonesianDate } from '../utils/storage';
 import { appendAppointmentToSheet } from '../services/googleSheets';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../supabaseClient';
 
 interface BookingModalProps {
   isOpen: boolean;
