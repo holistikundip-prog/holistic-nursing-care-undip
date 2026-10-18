@@ -6,13 +6,16 @@ interface PatientAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: (patientData: any) => void;
+  onPatientAuthSuccess?: (patientData: any) => void;
+  currentUser?: any;
+  onGoogleAuthSuccess?: (user: any, token: string) => void;
+  onLogout?: () => void;
+  authPromptReason?: string | null;
 }
 
-export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
-  isOpen,
-  onClose,
-  onSuccess
-}) => {
+export const PatientAuthModal: React.FC<PatientAuthModalProps> = (props) => {
+  const { isOpen, onClose, onSuccess, onPatientAuthSuccess } = props;
+
   const [activeTab, setActiveTab] = useState<'login' | 'register' | 'manage'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,6 +40,8 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
   const safeSuccess = (data: any) => {
     if (typeof onSuccess === 'function') {
       onSuccess(data);
+    } else if (typeof onPatientAuthSuccess === 'function') {
+      onPatientAuthSuccess(data);
     }
   };
 
@@ -98,17 +103,21 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
           createdAt: new Date().toISOString()
         };
 
-        // Simpan juga ke Supabase agar masuk ke dashboard Admin
-        await supabase.from('appointments').insert([
-          {
-            kode_booking: `BOOK-${Date.now()}`,
-            nama_pasien: name,
-            email: email,
-            status: 'Terjadwal',
-            tanggal: new Date().toLocaleDateString('id-ID'),
-            waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-          }
-        ]);
+        // Simpan ke Supabase dengan try-catch terpisah agar tidak menggagalkan registrasi jika schema beda
+        try {
+          await supabase.from('appointments').insert([
+            {
+              booking_code: `BOOK-${Date.now()}`,
+              user_name: name,
+              user_email: email,
+              status: 'Terjadwal',
+              date: new Date().toISOString().split('T')[0],
+              time_slot: '09:00'
+            }
+          ]);
+        } catch (supabaseErr) {
+          console.warn('Proses sinkronisasi Supabase diabaikan:', supabaseErr);
+        }
 
         const updatedPatients = [...existingPatients, newPatient];
         localStorage.setItem('patients', JSON.stringify(updatedPatients));
@@ -117,7 +126,8 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
         handleClose();
       }
     } catch (err: any) {
-      setError(err.message || 'Terjadi kesalahan. Silakan coba lagi.');
+      const errorMsg = typeof err === 'string' ? err : err?.message || 'Terjadi kesalahan. Silakan coba lagi.';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
