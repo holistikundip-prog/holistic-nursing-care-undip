@@ -25,7 +25,8 @@ import { Appointment, Therapy, Video as VideoType, AppointmentStatus, UserProfil
 import { formatIndonesianDate } from '../utils/storage';
 import { GoogleSheetsCard } from '../components/GoogleSheetsCard';
 import { ClinicalProgressNotesManager } from '../components/ClinicalProgressNotesManager';
-
+import { useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 interface AdminDashboardViewProps {
   appointments: Appointment[];
   therapies: Therapy[];
@@ -74,7 +75,34 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   const [statusUpdateToast, setStatusUpdateToast] = useState<{ code: string; status: string } | null>(null);
   const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null);
   const [deleteToast, setDeleteToast] = useState<{ code: string; patientName: string } | null>(null);
+// Integrasi Realtime Data dari Supabase
+  useEffect(() => {
+    const fetchAppointments = async () => {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .order('created_at', { ascending: false });
 
+      if (error) console.error('Gagal panggil Supabase:', error.message);
+    };
+
+    fetchAppointments();
+
+    const channel = supabase
+      .channel('realtime-appointments')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'appointments' },
+        (payload) => {
+          console.log('Data pendaftaran baru diterima:', payload.new);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
   const handleStatusChangeWithFeedback = (appId: string, bookingCode: string, newStatus: AppointmentStatus) => {
     onUpdateAppointmentStatus(appId, newStatus);
     setStatusUpdateToast({ code: bookingCode, status: newStatus });
