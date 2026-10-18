@@ -59,17 +59,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('');
-  
+
   // User form data
   const [patientName, setPatientName] = useState<string>('');
   const [patientNumber, setPatientNumber] = useState<string>('');
   const [patientPhone, setPatientPhone] = useState<string>('');
   const [patientEmail, setPatientEmail] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
-  
+
   // Validation error state
   const [errorMessage, setErrorMessage] = useState<string>('');
-  
+
   // Created appointment result
   const [createdAppointment, setCreatedAppointment] = useState<Appointment | null>(null);
 
@@ -84,7 +84,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         setStep(1);
       }
       setSelectedLocationId(locations[0]?.id || 'undip-nursing');
-      
+
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       if (tomorrow.getDay() === 0) {
@@ -139,7 +139,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   const handleNextStep = () => {
     setErrorMessage('');
-    
+
     if (step === 1) {
       if (!selectedTherapyId) {
         setErrorMessage('Silakan pilih salah satu terapi holistik terlebih dahulu.');
@@ -217,7 +217,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
       setCreatedAppointment(newAppointment);
 
-      // KODE SUPABASE INSERT YANG SEBELUMNYA HILANG
+      // Simpan data ke Supabase
       try {
         const { error: spErr } = await supabase.from('appointments').insert([
           {
@@ -248,71 +248,20 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         console.error('Error koneksi Supabase:', err);
       }
 
-      // Jalankan handler sukses & pindah ke layar e-Tiket
+      // Jalankan handler sukses & pindah ke layar e-Tiket (Step 6)
       if (typeof onBookingSuccess === 'function') {
         onBookingSuccess(newAppointment);
       }
 
       setStep(6);
 
-      // Sync ke Google Spreadsheet
+      // Sync ke Google Spreadsheet jika token tersedia
       const activeToken = accessToken || (typeof window !== 'undefined' ? localStorage.getItem('hnc_google_access_token') : null);
       if (activeToken) {
         try {
           await appendAppointmentToSheet(activeToken, newAppointment);
         } catch (syncErr) {
           console.warn('Sync sheet error:', syncErr);
-        }
-      }
-    } catch (err: any) {
-      console.error('Error confirming booking:', err);
-      setErrorMessage('Terjadi kesalahan saat mengonfirmasi pendaftaran. Silakan coba lagi.');
-    }
-  };
-  
-  // 1. Simpan ke Supabase secara Fleksibel (Aman dari Perbedaan Nama Kolom)
-      try {
-        const { error: spErr } = await supabase.from('appointments').insert([
-          {
-            kode_booking: newAppointment.bookingCode,
-            nama_pasien: newAppointment.userName,
-            email: newAppointment.userEmail || '',
-            no_hp: newAppointment.userPhone || '',
-            phone: newAppointment.userPhone || '',
-            terapi: newAppointment.therapyName,
-            lokasi: newAppointment.locationName,
-            location_name: newAppointment.locationName,
-            tanggal: newAppointment.date,
-            hari: newAppointment.dayName,
-            waktu: newAppointment.timeSlot,
-            catatan: newAppointment.notes || '',
-            status: newAppointment.status || 'Terjadwal'
-          }
-        ]);
-
-        if (spErr) {
-          console.error('Laporan Supabase Insert:', spErr.message, spErr.details);
-        } else {
-          console.log('BERHASIL TERSIMPAN PERMANEN DI SUPABASE!');
-        }
-      } catch (err) {
-        console.error('Error koneksi Supabase:', err);
-      }
-
-      // 2. Jalankan handler bawaan aplikasi
-      if (typeof onBookingSuccess === 'function') {
-        onBookingSuccess(newAppointment);
-      }
-
-      setStep(6); // Pindah ke layar Sukses
-
-      // 3. Sync latar belakang ke Google Sheets jika token tersedia
-      const activeToken = accessToken || (typeof window !== 'undefined' ? localStorage.getItem('hnc_google_access_token') : null);
-      if (activeToken) {
-        try {
-          await appendAppointmentToSheet(activeToken, newAppointment);
-        } catch (syncErr) {
-          console.warn('Background sheet sync info:', syncErr);
         }
       }
     } catch (err: any) {
