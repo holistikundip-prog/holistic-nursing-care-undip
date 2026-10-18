@@ -34,9 +34,9 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
     onClose();
   };
 
-  const triggerSuccess = (patientData: any) => {
+  const safeSuccess = (data: any) => {
     if (typeof onSuccess === 'function') {
-      onSuccess(patientData);
+      onSuccess(data);
     }
   };
 
@@ -55,7 +55,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
       const existingPatients = JSON.parse(localStorage.getItem('patients') || '[]');
 
       if (activeTab === 'login') {
-        // 1. Cari pasien berdasarkan email
+        // 1. Cari pasien berdasarkan email saja
         const index = existingPatients.findIndex(
           (p: any) => p.email.toLowerCase() === email.toLowerCase()
         );
@@ -77,7 +77,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
           localStorage.setItem('patients', JSON.stringify(existingPatients));
         }
 
-        triggerSuccess(existingPatients[index]);
+        safeSuccess(existingPatients[index]);
         handleClose();
       } else if (activeTab === 'register') {
         // Alur Registrasi
@@ -98,7 +98,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
           createdAt: new Date().toISOString()
         };
 
-        // Simpan ke Supabase agar masuk ke dashboard Admin
+        // Simpan juga ke Supabase agar masuk ke dashboard Admin
         await supabase.from('appointments').insert([
           {
             kode_booking: `BOOK-${Date.now()}`,
@@ -113,7 +113,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
         const updatedPatients = [...existingPatients, newPatient];
         localStorage.setItem('patients', JSON.stringify(updatedPatients));
 
-        triggerSuccess(newPatient);
+        safeSuccess(newPatient);
         handleClose();
       }
     } catch (err: any) {
@@ -126,6 +126,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
   const handleSoftDelete = (targetEmail: string) => {
     const existingPatients = JSON.parse(localStorage.getItem('patients') || '[]');
     
+    // Tandai akun sebagai isDeleted: true (Soft Delete)
     const updatedPatients = existingPatients.map((p: any) => {
       if (p.email.toLowerCase() === targetEmail.toLowerCase()) {
         return { ...p, isDeleted: true };
@@ -134,6 +135,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
     });
 
     localStorage.setItem('patients', JSON.stringify(updatedPatients));
+    // Re-render tab kelola akun
     setEmail('');
   };
 
@@ -141,8 +143,8 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
     setError('');
     setLoading(true);
     try {
-      // Menggunakan Supabase OAuth Google sebagai pengganti Firebase Auth
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      // Menggunakan OAuth Supabase sebagai pengganti Firebase
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
       });
 
@@ -306,7 +308,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
-                        triggerSuccess(patient);
+                        safeSuccess(patient);
                         handleClose();
                       }}
                       className="rounded bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-200"
