@@ -478,7 +478,7 @@ export default function App() {
           setPendingBookingTherapy(null);
         }}
         currentUser={user}
-        onPatientAuthSuccess={(updatedPatient) => {
+        onSuccess={(updatedPatient) => {
           handleUserChange(updatedPatient);
         }}
         onGoogleAuthSuccess={handleGoogleAuthSuccess}
