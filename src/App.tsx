@@ -39,7 +39,6 @@ import {
   setOnboardingSeen,
   filterUserAppointments,
   clearUserSession,
-  createGuestPatient,
   getStoredProgressNotes,
   saveProgressNotes
 } from './utils/storage';
@@ -89,7 +88,6 @@ export default function App() {
   };
 
   const handleNakesLoginSuccess = async () => {
-    // 1. Otomatis bersihkan / reset sesi profil pasien yang sedang login saat Nakes aktif
     try {
       await logoutGoogle();
     } catch (e) {
@@ -105,18 +103,15 @@ export default function App() {
     setPreSelectedTherapyForBooking(null);
     setPatientAuthPromptReason(null);
 
-    // 2. Aktifkan Mode Nakes & alihkan ke tab Admin
     setIsAdmin(true);
     setActiveTab('admin');
   };
 
   const handleExitNakesMode = async () => {
-    // 1. Hapus token otentikasi Nakes
     localStorage.removeItem('hnc_nakes_authenticated');
     localStorage.removeItem('hnc_nakes_user');
     setIsAdmin(false);
 
-    // 2. Bersihkan sesi dan kembalikan ke status Tamu
     try {
       await logoutGoogle();
     } catch (e) {
@@ -131,7 +126,6 @@ export default function App() {
     setPendingBookingTherapy(null);
     setPreSelectedTherapyForBooking(null);
 
-    // 3. Kembalikan ke halaman utama & buka form Login / Masuk Akun Pasien
     setActiveTab('home');
     setPatientAuthPromptReason('Anda telah keluar dari Mode Tenaga Kesehatan. Silakan masuk ke akun Pasien atau lanjutkan sebagai Tamu.');
     setShowPatientAuthModal(true);
@@ -160,7 +154,6 @@ export default function App() {
   const handleGoogleAuthSuccess = (u: any, token: string) => {
     setGoogleUser(u);
     setAccessToken(token);
-    // Sinkronkan seluruh data secara otomatis dan instan saat berhasil otorisasi Google
     triggerRealtimeSheetSync(token, appointments, 100);
   };
 
@@ -190,7 +183,6 @@ export default function App() {
     setAppointments(updated);
     saveAppointments(updated);
 
-    // Otomatis tersinkronisasi real-time ke Google Spreadsheet
     const activeToken =
       accessToken ||
       (typeof window !== 'undefined' ? localStorage.getItem('hnc_google_access_token') : null);
@@ -212,11 +204,9 @@ export default function App() {
   const handleUserChange = (updated: UserProfile) => {
     setUser(updated);
     saveUser(updated);
-    // Reset selected states so previous session/patient data is not retained
     setSelectedAppointmentForDetail(null);
     setPatientAuthPromptReason(null);
 
-    // If patient was attempting to book before authenticating, smoothly resume booking
     if (pendingBookingTherapy !== null) {
       const therapyToBook = pendingBookingTherapy;
       setPendingBookingTherapy(null);
@@ -228,15 +218,12 @@ export default function App() {
     }
   };
 
-  // Close Onboarding and remember
   const handleCloseOnboarding = () => {
     setShowOnboarding(false);
     setOnboardingSeen();
   };
 
-  // Open booking with optional pre-selected therapy (strictly requires logged in patient)
   const handleOpenBooking = (therapy?: Therapy) => {
-    // If current patient is guest or has no email/unauthenticated
     if (!user || user.isGuest || !user.email) {
       setPendingBookingTherapy(therapy || null);
       setPatientAuthPromptReason('Silakan masuk (login) atau daftar akun pasien terlebih dahulu untuk melakukan reservasi.');
@@ -247,12 +234,10 @@ export default function App() {
     setShowBookingModal(true);
   };
 
-  // Add new appointment from booking modal
   const handleBookingSuccess = async (newAppointment: Appointment) => {
     const updated = [newAppointment, ...appointments];
     handleAppointmentsChange(updated);
 
-    // Otomatis langsung append ke Google Sheets terhubung jika token tersedia
     const activeToken = accessToken || (await getAccessToken()) || localStorage.getItem('hnc_google_access_token');
     if (activeToken) {
       try {
@@ -263,7 +248,6 @@ export default function App() {
     }
   };
 
-  // Cancel appointment with reason
   const handleCancelAppointment = (id: string, reason: string) => {
     const updated = appointments.map((app) => {
       if (app.id === id) {
@@ -285,7 +269,6 @@ export default function App() {
     }
   };
 
-  // Update appointment status from Admin console
   const handleUpdateAppointmentStatus = (id: string, newStatus: AppointmentStatus) => {
     const updated = appointments.map((app) => {
       if (app.id === id) {
@@ -296,7 +279,6 @@ export default function App() {
     handleAppointmentsChange(updated);
   };
 
-  // Admin Delete Appointment with automatic Google Sheets re-sync
   const handleDeleteAppointment = (id: string) => {
     const updated = appointments.filter((app) => app.id !== id);
     handleAppointmentsChange(updated);
@@ -305,14 +287,8 @@ export default function App() {
     }
   };
 
-  // Admin Add, Update & Delete Therapies
   const handleAddTherapy = (newTherapy: Therapy) => {
     const updated = [newTherapy, ...therapies];
-    handleTherapiesChange(updated);
-  };
-
-  const handleUpdateTherapy = (updatedTherapy: Therapy) => {
-    const updated = therapies.map((t) => (t.id === updatedTherapy.id ? updatedTherapy : t));
     handleTherapiesChange(updated);
   };
 
@@ -321,14 +297,8 @@ export default function App() {
     handleTherapiesChange(updated);
   };
 
-  // Admin Add, Update & Delete Videos
   const handleAddVideo = (newVideo: Video) => {
     const updated = [newVideo, ...videos];
-    handleVideosChange(updated);
-  };
-
-  const handleUpdateVideo = (updatedVideo: Video) => {
-    const updated = videos.map((v) => (v.id === updatedVideo.id ? updatedVideo : v));
     handleVideosChange(updated);
   };
 
@@ -337,7 +307,6 @@ export default function App() {
     handleVideosChange(updated);
   };
 
-  // Clinical Progress Notes (SOAP) Handlers
   const handleAddProgressNote = (newNote: ClinicalProgressNote) => {
     const updated = [newNote, ...progressNotes];
     setProgressNotes(updated);
@@ -356,7 +325,6 @@ export default function App() {
     saveProgressNotes(updated);
   };
 
-  // Active appointments counter for badges (scoped strictly to current active patient, or all for admin)
   const activeAppointmentsCount = useMemo(() => {
     const list = isAdmin ? appointments : filterUserAppointments(appointments, user);
     return list.filter(
@@ -366,7 +334,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-stone-100 flex flex-col font-sans selection:bg-emerald-200 selection:text-emerald-900 text-stone-800">
-      {/* Top Navigation Bar */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -379,7 +346,6 @@ export default function App() {
         onOpenPatientAuth={() => setShowPatientAuthModal(true)}
       />
 
-      {/* Main Content Area */}
       <main className="flex-1 max-w-5xl w-full mx-auto px-3.5 sm:px-6 py-6 pb-24 md:pb-20">
         {activeTab === 'home' && (
           <HomeView
@@ -461,7 +427,6 @@ export default function App() {
         )}
       </main>
 
-      {/* Bottom Navigation for Mobile / Tablet */}
       <BottomNav
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -469,7 +434,7 @@ export default function App() {
         isAdmin={isAdmin}
       />
 
-      {/* Modals */}
+      {/* Patient Auth Modal */}
       <PatientAuthModal
         isOpen={showPatientAuthModal}
         onClose={() => {
@@ -479,6 +444,9 @@ export default function App() {
         }}
         currentUser={user}
         onSuccess={(updatedPatient) => {
+          handleUserChange(updatedPatient);
+        }}
+        onPatientAuthSuccess={(updatedPatient) => {
           handleUserChange(updatedPatient);
         }}
         onGoogleAuthSuccess={handleGoogleAuthSuccess}
