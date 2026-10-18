@@ -20,6 +20,7 @@ import { Therapy, LocationItem, Appointment, UserProfile } from '../types';
 import { GENERATE_TIME_SLOTS } from '../data/mockData';
 import { generateBookingCode, getIndonesianDayName, formatIndonesianDate } from '../utils/storage';
 import { appendAppointmentToSheet } from '../services/googleSheets';
+import { supabase } from '../lib/supabase';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -213,13 +214,29 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
       setCreatedAppointment(newAppointment);
 
+      // 1. Simpan ke Supabase agar tersinkronisasi lintas HP & Browser
+      try {
+        await supabase.from('appointments').insert([
+          {
+            kode_booking: newAppointment.bookingCode,
+            nama_pasien: newAppointment.userName,
+            email: newAppointment.userEmail,
+            status: newAppointment.status,
+            terapi: newAppointment.therapyName
+          }
+        ]);
+      } catch (spErr) {
+        console.warn('Simpan ke Supabase info:', spErr);
+      }
+
+      // 2. Jalankan handler bawaan aplikasi
       if (typeof onBookingSuccess === 'function') {
         onBookingSuccess(newAppointment);
       }
 
       setStep(6); // Pindah ke layar Sukses
 
-      // Sync latar belakang (opsional)
+      // 3. Sync latar belakang ke Google Sheets jika token tersedia
       const activeToken = accessToken || (typeof window !== 'undefined' ? localStorage.getItem('hnc_google_access_token') : null);
       if (activeToken) {
         try {
