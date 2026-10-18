@@ -223,7 +223,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     email: newAppointment.userEmail,
     no_hp: newAppointment.userPhone, // <--- Menyimpan nomor HP asli pasien
     terapi: newAppointment.therapyName,
-    lokasi: newAppointment.locationName,
+    lokasi: newAppointment.locationName, // <--- Menyimpan nama lokasi pilihan pasien (misal: Dipocare / Departemen)
     tanggal: newAppointment.date,
     hari: newAppointment.dayName,
     waktu: newAppointment.timeSlot,
