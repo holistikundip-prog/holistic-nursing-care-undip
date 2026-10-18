@@ -216,23 +216,29 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
       // 1. Simpan ke Supabase agar tersinkronisasi lintas HP & Browser
       try {
-        await supabase.from('appointments').insert([
-  {
-    kode_booking: newAppointment.bookingCode,
-    nama_pasien: newAppointment.userName,
-    email: newAppointment.userEmail,
-    no_hp: newAppointment.userPhone, // <--- Menyimpan nomor HP asli pasien
-    terapi: newAppointment.therapyName,
-    lokasi: newAppointment.locationName, // <--- Menyimpan nama lokasi pilihan pasien (misal: Dipocare / Departemen)
-    tanggal: newAppointment.date,
-    hari: newAppointment.dayName,
-    waktu: newAppointment.timeSlot,
-    catatan: newAppointment.notes,
-    status: newAppointment.status
-  }
-]);
-      } catch (spErr) {
-        console.warn('Simpan ke Supabase info:', spErr);
+        const { error: spErr } = await supabase.from('appointments').insert([
+          {
+            kode_booking: newAppointment.bookingCode,
+            nama_pasien: newAppointment.userName,
+            email: newAppointment.userEmail || '',
+            no_hp: newAppointment.userPhone || '',
+            terapi: newAppointment.therapyName,
+            lokasi: newAppointment.locationName,
+            tanggal: newAppointment.date,
+            hari: newAppointment.dayName,
+            waktu: newAppointment.timeSlot,
+            catatan: newAppointment.notes || '',
+            status: newAppointment.status || 'Terjadwal'
+          }
+        ]);
+
+        if (spErr) {
+          console.error('Gagal menyimpan ke Supabase:', spErr.message, spErr.details);
+        } else {
+          console.log('Berhasil tersimpan di Supabase!');
+        }
+      } catch (err) {
+        console.error('Error tidak terduga saat koneksi Supabase:', err);
       }
 
       // 2. Jalankan handler bawaan aplikasi
