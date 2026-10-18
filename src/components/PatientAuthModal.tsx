@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { X, Mail, Lock, User, AlertCircle, Trash2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+
 interface PatientAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (patientData: any) => void;
+  onSuccess?: (patientData: any) => void;
 }
 
 export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
@@ -33,6 +34,12 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
     onClose();
   };
 
+  const triggerSuccess = (patientData: any) => {
+    if (typeof onSuccess === 'function') {
+      onSuccess(patientData);
+    }
+  };
+
   // Ambil hanya akun yang TIDAK/BELUM di-soft delete
   const getActivePatients = () => {
     const existingPatients = JSON.parse(localStorage.getItem('patients') || '[]');
@@ -48,7 +55,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
       const existingPatients = JSON.parse(localStorage.getItem('patients') || '[]');
 
       if (activeTab === 'login') {
-        // 1. Cari pasien berdasarkan email saja
+        // 1. Cari pasien berdasarkan email
         const index = existingPatients.findIndex(
           (p: any) => p.email.toLowerCase() === email.toLowerCase()
         );
@@ -70,7 +77,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
           localStorage.setItem('patients', JSON.stringify(existingPatients));
         }
 
-        onSuccess(existingPatients[index]);
+        triggerSuccess(existingPatients[index]);
         handleClose();
       } else if (activeTab === 'register') {
         // Alur Registrasi
@@ -82,32 +89,32 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
           throw new Error('Email sudah terdaftar. Silakan login.');
         }
 
-   const newPatient = {
-      id: Date.now().toString(),
-      name,
-      email,
-      password,
-      isDeleted: false,
-      createdAt: new Date().toISOString()
-    };
+        const newPatient = {
+          id: Date.now().toString(),
+          name,
+          email,
+          password,
+          isDeleted: false,
+          createdAt: new Date().toISOString()
+        };
 
-    // Simpan juga ke Supabase agar masuk ke dashboard Admin
-    await supabase.from('appointments').insert([
-      {
-        kode_booking: `BOOK-${Date.now()}`,
-        nama_pasien: name,
-        email: email,
-        status: 'Terjadwal',
-        tanggal: new Date().toLocaleDateString('id-ID'),
-        waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
-      }
-    ]);
+        // Simpan ke Supabase agar masuk ke dashboard Admin
+        await supabase.from('appointments').insert([
+          {
+            kode_booking: `BOOK-${Date.now()}`,
+            nama_pasien: name,
+            email: email,
+            status: 'Terjadwal',
+            tanggal: new Date().toLocaleDateString('id-ID'),
+            waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+          }
+        ]);
 
-    const updatedPatients = [...existingPatients, newPatient];
-    localStorage.setItem('patients', JSON.stringify(updatedPatients));
+        const updatedPatients = [...existingPatients, newPatient];
+        localStorage.setItem('patients', JSON.stringify(updatedPatients));
 
-    onSuccess(newPatient);
-    handleClose();
+        triggerSuccess(newPatient);
+        handleClose();
       }
     } catch (err: any) {
       setError(err.message || 'Terjadi kesalahan. Silakan coba lagi.');
@@ -119,7 +126,6 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
   const handleSoftDelete = (targetEmail: string) => {
     const existingPatients = JSON.parse(localStorage.getItem('patients') || '[]');
     
-    // Tandai akun sebagai isDeleted: true (Soft Delete)
     const updatedPatients = existingPatients.map((p: any) => {
       if (p.email.toLowerCase() === targetEmail.toLowerCase()) {
         return { ...p, isDeleted: true };
@@ -128,7 +134,6 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
     });
 
     localStorage.setItem('patients', JSON.stringify(updatedPatients));
-    // Re-render tab kelola akun
     setEmail('');
   };
 
@@ -136,35 +141,14 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
     setError('');
     setLoading(true);
     try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
+      // Menggunakan Supabase OAuth Google sebagai pengganti Firebase Auth
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+      });
 
-      const existingPatients = JSON.parse(localStorage.getItem('patients') || '[]');
-      let index = existingPatients.findIndex((p: any) => p.email === user.email);
-
-      let patient;
-      if (index === -1) {
-        patient = {
-          id: user.uid,
-          name: user.displayName || 'Pasien Google',
-          email: user.email,
-          isDeleted: false,
-          createdAt: new Date().toISOString()
-        };
-        existingPatients.push(patient);
-      } else {
-        patient = existingPatients[index];
-        patient.isDeleted = false; // Restore jika sebelumnya terhapus
-      }
-
-      localStorage.setItem('patients', JSON.stringify(existingPatients));
-      onSuccess(patient);
-      handleClose();
+      if (error) throw error;
     } catch (err: any) {
-      if (err.code !== 'auth/popup-closed-by-user') {
-        setError('Gagal login dengan Google. Silakan coba lagi.');
-      }
+      setError('Gagal login dengan Google. Silakan coba lagi.');
     } finally {
       setLoading(false);
     }
@@ -322,7 +306,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
-                        onSuccess(patient);
+                        triggerSuccess(patient);
                         handleClose();
                       }}
                       className="rounded bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-200"
