@@ -224,16 +224,15 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             kode_booking: newAppointment.bookingCode,
             nama_pasien: newAppointment.userName,
             email: newAppointment.userEmail || '',
-            no_hp: newAppointment.userPhone || '',
             phone: newAppointment.userPhone || '',
             no_rm: newAppointment.patientNumber,
             user_id: newAppointment.userId,
             terapi: newAppointment.therapyName,
             lokasi: newAppointment.locationName,
-            location_name: newAppointment.locationName,
             tanggal: newAppointment.date,
             hari: newAppointment.dayName,
             waktu: cleanTime,
+            catatan: newAppointment.notes || '',
             status: newAppointment.status || 'Terjadwal'
           }
         ]);
