@@ -80,43 +80,49 @@ export default function App() {
 
   // Load appointments from Supabase on mount
   useEffect(() => {
-    const fetchAppointmentsFromSupabase = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('appointments')
-          .select('*')
-          .order('created_at', { ascending: false });
+  const fetchAppointmentsFromSupabase = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-        if (data && !error && data.length > 0) {
-          const mappedAppointments: Appointment[] = data.map((item: any, index: number) => ({
-            id: item.id ? item.id.toString() : 'app-sp-' + index,
-            bookingCode: item.kode_booking || item.booking_code || `HNC-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-            userId: item.user_id || 'user-guest',
-            userName: item.nama_pasien || item.user_name || 'Pasien',
-            userEmail: item.email || item.user_email || '',
-            userPhone: item.no_hp || item.phone || '0812-3456-7890',
-            patientNumber: item.no_rm || 'HNC-PASIEN-001',
-            therapyId: 'therapy-1',
-            therapyName: item.terapi || item.therapy_name || 'Head Massage',
-            locationId: 'undip-nursing',
-            locationName: item.lokasi || 'Departemen Ilmu Keperawatan Universitas Diponegoro',
-            date: item.tanggal || (item.created_at ? item.created_at.split('T')[0] : new Date().toISOString().split('T')[0]),
-            dayName: item.hari || 'Senin',
-            timeSlot: item.waktu || '09:00 WIB',
-            notes: item.catatan || '',
-            status: item.status || 'Terjadwal',
-            createdAt: item.created_at || new Date().toISOString()
-          }));
+      if (data && !error && data.length > 0) {
+        const mappedAppointments: Appointment[] = data.map((item: any, index: number) => ({
+          id: item.id ? item.id.toString() : 'app-sp-' + index,
+          bookingCode: item.kode_booking || item.booking_code || `HNC-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+          userId: item.user_id || 'user-guest',
+          userName: item.nama_pasien || item.user_name || 'Pasien',
+          userEmail: item.email || item.user_email || '',
+          userPhone: item.no_hp || item.phone || '0812-3456-7890',
+          patientNumber: item.no_rm || 'HNC-PASIEN-001',
+          therapyId: 'therapy-1',
+          therapyName: item.terapi || item.therapy_name || 'Head Massage',
+          locationId: 'undip-nursing',
+          locationName: item.lokasi || 'Departemen Ilmu Keperawatan Universitas Diponegoro',
+          date: item.tanggal || (item.created_at ? item.created_at.split('T')[0] : new Date().toISOString().split('T')[0]),
+          dayName: item.hari || 'Senin',
+          timeSlot: item.waktu || '09:00 WIB',
+          notes: item.catatan || '',
+          status: item.status || 'Terjadwal',
+          createdAt: item.created_at || new Date().toISOString()
+        }));
 
-          setAppointments(mappedAppointments);
+        setAppointments(mappedAppointments);
+
+        // Jika Admin sedang login Google, sync otomatis ke Spreadsheet
+        const activeToken = accessToken || localStorage.getItem('hnc_google_access_token');
+        if (activeToken) {
+          triggerRealtimeSheetSync(activeToken, mappedAppointments, 500);
         }
-      } catch (err) {
-        console.warn('Gagal mengambil data dari Supabase:', err);
       }
-    };
+    } catch (err) {
+      console.warn('Gagal mengambil data dari Supabase:', err);
+    }
+  };
 
-    fetchAppointmentsFromSupabase();
-  }, []);
+  fetchAppointmentsFromSupabase();
+}, [accessToken]);
 
   // Nakes Mode authentication handlers
   const handleRequestNakesAccess = () => {
