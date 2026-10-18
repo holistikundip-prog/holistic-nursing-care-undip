@@ -217,7 +217,60 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
       setCreatedAppointment(newAppointment);
 
-      // 1. Simpan ke Supabase secara Fleksibel (Aman dari Perbedaan Nama Kolom)
+      // KODE SUPABASE INSERT YANG SEBELUMNYA HILANG
+      try {
+        const { error: spErr } = await supabase.from('appointments').insert([
+          {
+            kode_booking: newAppointment.bookingCode,
+            nama_pasien: newAppointment.userName,
+            email: newAppointment.userEmail || '',
+            no_hp: newAppointment.userPhone || '',
+            phone: newAppointment.userPhone || '',
+            no_rm: newAppointment.patientNumber,
+            user_id: newAppointment.userId,
+            terapi: newAppointment.therapyName,
+            lokasi: newAppointment.locationName,
+            location_name: newAppointment.locationName,
+            tanggal: newAppointment.date,
+            hari: newAppointment.dayName,
+            waktu: newAppointment.timeSlot,
+            catatan: newAppointment.notes || '',
+            status: newAppointment.status || 'Terjadwal'
+          }
+        ]);
+
+        if (spErr) {
+          console.error('Error dari Supabase:', spErr.message, spErr.details);
+        } else {
+          console.log('BERHASIL TERSIMPAN PERMANEN DI SUPABASE!');
+        }
+      } catch (err) {
+        console.error('Error koneksi Supabase:', err);
+      }
+
+      // Jalankan handler sukses & pindah ke layar e-Tiket
+      if (typeof onBookingSuccess === 'function') {
+        onBookingSuccess(newAppointment);
+      }
+
+      setStep(6);
+
+      // Sync ke Google Spreadsheet
+      const activeToken = accessToken || (typeof window !== 'undefined' ? localStorage.getItem('hnc_google_access_token') : null);
+      if (activeToken) {
+        try {
+          await appendAppointmentToSheet(activeToken, newAppointment);
+        } catch (syncErr) {
+          console.warn('Sync sheet error:', syncErr);
+        }
+      }
+    } catch (err: any) {
+      console.error('Error confirming booking:', err);
+      setErrorMessage('Terjadi kesalahan saat mengonfirmasi pendaftaran. Silakan coba lagi.');
+    }
+  };
+  
+  // 1. Simpan ke Supabase secara Fleksibel (Aman dari Perbedaan Nama Kolom)
       try {
         const { error: spErr } = await supabase.from('appointments').insert([
           {
