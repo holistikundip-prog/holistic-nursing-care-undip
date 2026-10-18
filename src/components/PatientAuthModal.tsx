@@ -36,11 +36,14 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = (props) => {
     onClose();
   };
 
+  // Panggil callback secara opsional & aman dari runtime error
   const safeSuccess = (data: any) => {
     if (typeof onSuccess === 'function') {
       onSuccess(data);
     } else if (typeof onPatientAuthSuccess === 'function') {
       onPatientAuthSuccess(data);
+    } else if (typeof (props as any).onAuthSuccess === 'function') {
+      (props as any).onAuthSuccess(data);
     }
   };
 
@@ -59,75 +62,80 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = (props) => {
     setError('');
     setLoading(true);
 
+    let existingPatients: any[] = [];
     try {
-      let existingPatients: any[] = [];
-      try {
-        existingPatients = JSON.parse(localStorage.getItem('patients') || '[]');
-        if (!Array.isArray(existingPatients)) existingPatients = [];
-      } catch {
-        existingPatients = [];
+      existingPatients = JSON.parse(localStorage.getItem('patients') || '[]');
+      if (!Array.isArray(existingPatients)) existingPatients = [];
+    } catch {
+      existingPatients = [];
+    }
+
+    if (activeTab === 'login') {
+      // 1. Cari pasien berdasarkan email
+      const index = existingPatients.findIndex(
+        (p: any) => p && p.email && p.email.toLowerCase() === email.toLowerCase()
+      );
+
+      if (index === -1) {
+        setError('Email belum terdaftar. Silakan pilih "Daftar Baru".');
+        setLoading(false);
+        return;
       }
 
-      if (activeTab === 'login') {
-        // 1. Cari pasien berdasarkan email
-        const index = existingPatients.findIndex(
-          (p: any) => p && p.email && p.email.toLowerCase() === email.toLowerCase()
-        );
+      const patient = existingPatients[index];
 
-        if (index === -1) {
-          setError('Email belum terdaftar. Silakan pilih "Daftar Baru".');
-          setLoading(false);
-          return;
-        }
+      // 2. Cek kesesuaian password
+      if (patient.password !== password) {
+        setError('Password salah. Silakan coba lagi.');
+        setLoading(false);
+        return;
+      }
 
-        const patient = existingPatients[index];
-
-        // 2. Cek kesesuaian password
-        if (patient.password !== password) {
-          setError('Password salah. Silakan coba lagi.');
-          setLoading(false);
-          return;
-        }
-
-        // 3. Restore akun jika sebelumnya di-soft delete
-        if (patient.isDeleted) {
-          existingPatients[index].isDeleted = false;
+      // 3. Restore akun jika sebelumnya di-soft delete
+      if (patient.isDeleted) {
+        existingPatients[index].isDeleted = false;
+        try {
           localStorage.setItem('patients', JSON.stringify(existingPatients));
+        } catch (e) {
+          console.warn('Gagal menyimpan ke LocalStorage:', e);
         }
-
-        safeSuccess(existingPatients[index]);
-        handleClose();
-      } else if (activeTab === 'register') {
-        // Alur Registrasi
-        const exists = existingPatients.some(
-          (p: any) => p && p.email && p.email.toLowerCase() === email.toLowerCase() && !p.isDeleted
-        );
-
-        if (exists) {
-          setError('Email sudah terdaftar. Silakan login.');
-          setLoading(false);
-          return;
-        }
-
-        const newPatient = {
-          id: Date.now().toString(),
-          name: name.trim(),
-          email: email.trim(),
-          password,
-          isDeleted: false,
-          createdAt: new Date().toISOString()
-        };
-
-        const updatedPatients = [...existingPatients, newPatient];
-        localStorage.setItem('patients', JSON.stringify(updatedPatients));
-
-        safeSuccess(newPatient);
-        handleClose();
       }
-    } catch (err: any) {
-      setError('Gagal memproses pendaftaran. Silakan coba lagi.');
-    } finally {
+
       setLoading(false);
+      safeSuccess(patient);
+      handleClose();
+
+    } else if (activeTab === 'register') {
+      // Alur Registrasi
+      const exists = existingPatients.some(
+        (p: any) => p && p.email && p.email.toLowerCase() === email.toLowerCase() && !p.isDeleted
+      );
+
+      if (exists) {
+        setError('Email sudah terdaftar. Silakan login.');
+        setLoading(false);
+        return;
+      }
+
+      const newPatient = {
+        id: Date.now().toString(),
+        name: name.trim(),
+        email: email.trim(),
+        password,
+        isDeleted: false,
+        createdAt: new Date().toISOString()
+      };
+
+      const updatedPatients = [...existingPatients, newPatient];
+      try {
+        localStorage.setItem('patients', JSON.stringify(updatedPatients));
+      } catch (e) {
+        console.warn('Gagal menyimpan ke LocalStorage:', e);
+      }
+
+      setLoading(false);
+      safeSuccess(newPatient);
+      handleClose();
     }
   };
 
