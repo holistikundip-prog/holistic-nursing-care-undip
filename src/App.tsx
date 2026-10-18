@@ -41,7 +41,8 @@ import {
   filterUserAppointments,
   clearUserSession,
   getStoredProgressNotes,
-  saveProgressNotes
+  saveProgressNotes,
+  getIndonesianDayName
 } from './utils/storage';
 
 export default function App() {
@@ -78,64 +79,84 @@ export default function App() {
   const [preSelectedTherapyForBooking, setPreSelectedTherapyForBooking] = useState<Therapy | null>(null);
   const [selectedAppointmentForDetail, setSelectedAppointmentForDetail] = useState<Appointment | null>(null);
 
-  // Load appointments from Supabase on mount
+  // Load & Realtime Subscription dari Supabase
   useEffect(() => {
-  const fetchAppointmentsFromSupabase = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('appointments')
-        .select('*')
-        .order('created_at', { ascending: false });
+    const fetchAppointmentsFromSupabase = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('appointments')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      if (data && !error && data.length > 0) {
-        const mappedAppointments: Appointment[] = data.map((item: any, index: number) => {
-          // 1. Ambil tanggal dari Supabase
-          const rawDate = item.tanggal || (item.created_at ? item.created_at.split('T')[0] : new Date().toISOString().split('T')[0]);
-          
-          // 2. Hitung nama hari Indonesia secara otomatis berdasarkan tanggalnya
-          const calculatedDay = getIndonesianDayName(rawDate);
+        if (data && !error && data.length > 0) {
+          const mappedAppointments: Appointment[] = data.map((item: any, index: number) => {
+            // 1. Ambil tanggal asli dari Supabase
+            const rawDate = item.tanggal || (item.created_at ? item.created_at.split('T')[0] : new Date().toISOString().split('T')[0]);
+            
+            // 2. Hitung nama hari Indonesia secara otomatis berdasarkan tanggalnya
+            const calculatedDay = getIndonesianDayName(rawDate);
 
-          // 3. Rapikan format waktu agar tidak menjadi "09:00 WIB WIB"
-          let cleanTime = item.waktu || '09:00';
-          cleanTime = cleanTime.replace(/\s*WIB/gi, '').trim();
-          const formattedTimeSlot = `${cleanTime} WIB`;
+            // 3. Rapikan format waktu agar tidak menjadi "09:00 WIB WIB"
+            let cleanTime = item.waktu || '09:00';
+            cleanTime = cleanTime.replace(/\s*WIB/gi, '').trim();
+            const formattedTimeSlot = `${cleanTime} WIB`;
 
-          return {
-            id: item.id ? item.id.toString() : 'app-sp-' + index,
-            bookingCode: item.kode_booking || item.booking_code || `HNC-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-            userId: item.user_id || 'user-guest',
-            userName: item.nama_pasien || item.user_name || 'Pasien',
-            userEmail: item.email || item.user_email || '',
-            userPhone: item.no_hp || item.phone || item.user_phone || '-',
-            patientNumber: item.no_rm || 'HNC-PASIEN-001',
-            therapyId: 'therapy-1',
-            therapyName: item.terapi || item.therapy_name || 'Layanan Holistik',
-            locationId: 'undip-nursing',
-            locationName: locationName, // <--- Menggunakan lokasi dinamis pilihan pasien
-            date: rawDate,
-            dayName: item.hari || calculatedDay,
-            timeSlot: formattedTimeSlot,
-            notes: item.catatan || '',
-            status: item.status || 'Terjadwal',
-            createdAt: item.created_at || new Date().toISOString()
-          };
-        });
+            // 4. Deklarasikan variabel nomor HP dan lokasi agar dinamis
+            const patientPhone = item.no_hp || item.phone || item.user_phone || '-';
+            const locationName = item.lokasi || item.location_name || 'Departemen Ilmu Keperawatan Universitas Diponegoro';
 
-        setAppointments(mappedAppointments);
+            return {
+              id: item.id ? item.id.toString() : 'app-sp-' + index,
+              bookingCode: item.kode_booking || item.booking_code || `HNC-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+              userId: item.user_id || 'user-guest',
+              userName: item.nama_pasien || item.user_name || 'Pasien',
+              userEmail: item.email || item.user_email || '',
+              userPhone: patientPhone,
+              patientNumber: item.no_rm || 'HNC-PASIEN-001',
+              therapyId: 'therapy-1',
+              therapyName: item.terapi || item.therapy_name || 'Layanan Holistik',
+              locationId: 'undip-nursing',
+              locationName: locationName,
+              date: rawDate,
+              dayName: item.hari || calculatedDay,
+              timeSlot: formattedTimeSlot,
+              notes: item.catatan || '',
+              status: item.status || 'Terjadwal',
+              createdAt: item.created_at || new Date().toISOString()
+            };
+          });
 
-        // Jika Admin sedang login Google, sync otomatis ke Spreadsheet
-        const activeToken = accessToken || localStorage.getItem('hnc_google_access_token');
-        if (activeToken) {
-          triggerRealtimeSheetSync(activeToken, mappedAppointments, 500);
+          setAppointments(mappedAppointments);
+
+          // Sync otomatis ke Google Sheets jika admin sedang terhubung
+          const activeToken = accessToken || localStorage.getItem('hnc_google_access_token');
+          if (activeToken) {
+            triggerRealtimeSheetSync(activeToken, mappedAppointments, 500);
+          }
         }
+      } catch (err) {
+        console.warn('Gagal mengambil data dari Supabase:', err);
       }
-    } catch (err) {
-      console.warn('Gagal mengambil data dari Supabase:', err);
-    }
-  };
+    };
 
-  fetchAppointmentsFromSupabase();
-}, [accessToken]);
+    fetchAppointmentsFromSupabase();
+
+    // Listener Realtime Supabase
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'appointments' },
+        () => {
+          fetchAppointmentsFromSupabase();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [accessToken]);
 
   // Nakes Mode authentication handlers
   const handleRequestNakesAccess = () => {
