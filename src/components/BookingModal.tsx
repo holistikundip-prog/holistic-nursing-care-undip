@@ -192,10 +192,13 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
     try {
       const dayName = getIndonesianDayName(selectedDate);
+      const cleanTime = selectedTimeSlot.replace(/\s*WIB/gi, '').trim();
+      const formattedTime = `${cleanTime} WIB`;
+
       const newAppointment: Appointment = {
         id: 'app-' + Date.now(),
         bookingCode: generateBookingCode(),
-        userId: currentUser.id,
+        userId: currentUser.id || 'user-guest',
         userName: patientName.trim(),
         userEmail: (patientEmail.trim() || currentUser.email || '').toLowerCase(),
         userPhone: patientPhone.trim(),
@@ -206,7 +209,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         locationName: selectedLocation.name,
         date: selectedDate,
         dayName: dayName,
-        timeSlot: selectedTimeSlot,
+        timeSlot: formattedTime,
         notes: notes.trim(),
         status: 'Terjadwal',
         createdAt: new Date().toISOString()
@@ -214,7 +217,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
       setCreatedAppointment(newAppointment);
 
-      // 1. Simpan ke Supabase agar tersinkronisasi lintas HP & Browser
+      // 1. Simpan ke Supabase secara Fleksibel (Aman dari Perbedaan Nama Kolom)
       try {
         const { error: spErr } = await supabase.from('appointments').insert([
           {
@@ -222,8 +225,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             nama_pasien: newAppointment.userName,
             email: newAppointment.userEmail || '',
             no_hp: newAppointment.userPhone || '',
+            phone: newAppointment.userPhone || '',
             terapi: newAppointment.therapyName,
             lokasi: newAppointment.locationName,
+            location_name: newAppointment.locationName,
             tanggal: newAppointment.date,
             hari: newAppointment.dayName,
             waktu: newAppointment.timeSlot,
@@ -233,12 +238,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         ]);
 
         if (spErr) {
-          console.error('Gagal menyimpan ke Supabase:', spErr.message, spErr.details);
+          console.error('Laporan Supabase Insert:', spErr.message, spErr.details);
         } else {
-          console.log('Berhasil tersimpan di Supabase!');
+          console.log('BERHASIL TERSIMPAN PERMANEN DI SUPABASE!');
         }
       } catch (err) {
-        console.error('Error tidak terduga saat koneksi Supabase:', err);
+        console.error('Error koneksi Supabase:', err);
       }
 
       // 2. Jalankan handler bawaan aplikasi
@@ -254,7 +259,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         try {
           await appendAppointmentToSheet(activeToken, newAppointment);
         } catch (syncErr) {
-          console.warn('Background sync warning:', syncErr);
+          console.warn('Background sheet sync info:', syncErr);
         }
       }
     } catch (err: any) {
@@ -646,7 +651,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 <div className="flex justify-between border-b border-stone-200 pb-2">
                   <span className="text-stone-500">Jam Tindakan</span>
                   <span className="font-extrabold text-emerald-800 text-right bg-emerald-100 px-2 py-0.5 rounded">
-                    {selectedTimeSlot} WIB
+                    {selectedTimeSlot.includes('WIB') ? selectedTimeSlot : `${selectedTimeSlot} WIB`}
                   </span>
                 </div>
               </div>
@@ -693,7 +698,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   <div>
                     <span className="text-emerald-300 text-[10px] block">Waktu</span>
                     <span className="font-bold text-white text-sm">
-                      {createdAppointment.dayName}, {createdAppointment.timeSlot} WIB
+                      {createdAppointment.dayName}, {createdAppointment.timeSlot}
                     </span>
                   </div>
                   <div className="col-span-2 pt-1">
