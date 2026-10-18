@@ -2,10 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   CheckCircle2,
-  Calendar as CalendarIcon,
   Clock,
   MapPin,
-  Sparkles,
   User,
   Phone,
   Mail,
@@ -15,13 +13,11 @@ import {
   ArrowLeft,
   CalendarCheck2,
   QrCode,
-  Share2,
   Check,
-  ShieldCheck,
-  LogIn
+  ShieldCheck
 } from 'lucide-react';
 import { Therapy, LocationItem, Appointment, UserProfile } from '../types';
-import { GENERATE_TIME_SLOTS, INITIAL_LOCATIONS } from '../data/mockData';
+import { GENERATE_TIME_SLOTS } from '../data/mockData';
 import { generateBookingCode, getIndonesianDayName, formatIndonesianDate } from '../utils/storage';
 import { appendAppointmentToSheet } from '../services/googleSheets';
 
@@ -50,8 +46,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   existingAppointments,
   currentUser,
   accessToken,
-  googleUser,
-  onAuthSuccess,
   onBookingSuccess,
   onGoToMyAppointments,
   onRequestAuth
@@ -83,27 +77,25 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     if (isOpen) {
       if (preSelectedTherapy) {
         setSelectedTherapyId(preSelectedTherapy.id);
-        setStep(2); // If therapy was already chosen from detail, jump to Location
+        setStep(2);
       } else {
         setSelectedTherapyId(therapies[0]?.id || '');
         setStep(1);
       }
       setSelectedLocationId(locations[0]?.id || 'undip-nursing');
       
-      // Default to tomorrow or next valid weekday
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      if (tomorrow.getDay() === 0) { // Sunday -> move to Monday
+      if (tomorrow.getDay() === 0) {
         tomorrow.setDate(tomorrow.getDate() + 1);
       }
       const dateStr = tomorrow.toISOString().split('T')[0];
       setSelectedDate(dateStr);
       setSelectedTimeSlot('09:00');
 
-      // Autofill user profile
-      setPatientName(currentUser.name);
-      setPatientNumber(currentUser.patientNumber);
-      setPatientPhone(currentUser.phone);
+      setPatientName(currentUser.name || '');
+      setPatientNumber(currentUser.patientNumber || '');
+      setPatientPhone(currentUser.phone || '');
       setPatientEmail(currentUser.email || '');
       setNotes('');
       setErrorMessage('');
@@ -113,7 +105,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   const allTimeSlots = useMemo(() => GENERATE_TIME_SLOTS(), []);
 
-  // Determine booked slots for current date & location
   const bookedSlots = useMemo(() => {
     if (!selectedDate || !selectedLocationId) return new Set<string>();
     const booked = new Set<string>();
@@ -128,18 +119,16 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const selectedTherapy = therapies.find(t => t.id === selectedTherapyId);
   const selectedLocation = locations.find(l => l.id === selectedLocationId);
 
-  // Check if selected date is Sunday
   const isSunday = useMemo(() => {
     if (!selectedDate) return false;
     const d = new Date(selectedDate + 'T00:00:00');
     return d.getDay() === 0;
   }, [selectedDate]);
 
-  // Check if selected date violates therapy allowed days (e.g. Tai Chi / Yoga on Friday & Saturday only)
   const selectedDayOfWeek = useMemo(() => {
     if (!selectedDate) return null;
     const d = new Date(selectedDate + 'T00:00:00');
-    return d.getDay(); // 0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday, 5 = Friday, 6 = Saturday
+    return d.getDay();
   }, [selectedDate]);
 
   const isInvalidDayForTherapy = useMemo(() => {
@@ -193,44 +182,55 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         setErrorMessage('Nomor telepon / WhatsApp wajib diisi.');
         return;
       }
-      setStep(5); // Summary Confirmation
+      setStep(5);
     }
   };
 
   const handleConfirmBooking = async () => {
     if (!selectedTherapy || !selectedLocation) return;
 
-    const dayName = getIndonesianDayName(selectedDate);
-    const newAppointment: Appointment = {
-      id: 'app-' + Date.now(),
-      bookingCode: generateBookingCode(),
-      userId: currentUser.id,
-      userName: patientName.trim(),
-      userEmail: (patientEmail.trim() || currentUser.email || '').toLowerCase(),
-      userPhone: patientPhone.trim(),
-      patientNumber: patientNumber.trim() || 'HNC-PASIEN-' + Math.floor(100000 + Math.random() * 900000),
-      therapyId: selectedTherapy.id,
-      therapyName: selectedTherapy.name,
-      locationId: selectedLocation.id,
-      locationName: selectedLocation.name,
-      date: selectedDate,
-      dayName: dayName,
-      timeSlot: selectedTimeSlot,
-      notes: notes.trim(),
-      status: 'Terjadwal',
-      createdAt: new Date().toISOString()
-    };
+    try {
+      const dayName = getIndonesianDayName(selectedDate);
+      const newAppointment: Appointment = {
+        id: 'app-' + Date.now(),
+        bookingCode: generateBookingCode(),
+        userId: currentUser.id,
+        userName: patientName.trim(),
+        userEmail: (patientEmail.trim() || currentUser.email || '').toLowerCase(),
+        userPhone: patientPhone.trim(),
+        patientNumber: patientNumber.trim() || 'HNC-PASIEN-' + Math.floor(100000 + Math.random() * 900000),
+        therapyId: selectedTherapy.id,
+        therapyName: selectedTherapy.name,
+        locationId: selectedLocation.id,
+        locationName: selectedLocation.name,
+        date: selectedDate,
+        dayName: dayName,
+        timeSlot: selectedTimeSlot,
+        notes: notes.trim(),
+        status: 'Terjadwal',
+        createdAt: new Date().toISOString()
+      };
 
-    setCreatedAppointment(newAppointment);
-    onBookingSuccess(newAppointment);
-    setStep(6); // Success Step
+      setCreatedAppointment(newAppointment);
 
-    // Jika token pengelola sudah ada di latar belakang, catat secara senyap tanpa mengganggu alur pasien
-    const activeToken = accessToken || (typeof window !== 'undefined' ? localStorage.getItem('hnc_google_access_token') : null);
-    if (activeToken) {
-      appendAppointmentToSheet(activeToken, newAppointment).catch((err) => {
-        console.warn('Background sync log info:', err);
-      });
+      if (typeof onBookingSuccess === 'function') {
+        onBookingSuccess(newAppointment);
+      }
+
+      setStep(6); // Pindah ke layar Sukses
+
+      // Sync latar belakang (opsional)
+      const activeToken = accessToken || (typeof window !== 'undefined' ? localStorage.getItem('hnc_google_access_token') : null);
+      if (activeToken) {
+        try {
+          await appendAppointmentToSheet(activeToken, newAppointment);
+        } catch (syncErr) {
+          console.warn('Background sync warning:', syncErr);
+        }
+      }
+    } catch (err: any) {
+      console.error('Error confirming booking:', err);
+      setErrorMessage('Terjadi kesalahan saat mengonfirmasi pendaftaran. Silakan coba lagi.');
     }
   };
 
@@ -297,7 +297,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           </button>
         </div>
 
-        {/* Step Indicator (Steps 1 to 5) */}
+        {/* Step Indicator */}
         {step <= 5 && (
           <div className="px-6 pt-4 pb-2 bg-stone-50 border-b border-stone-100 flex items-center justify-between text-[11px] font-semibold text-stone-500">
             <span className={step >= 1 ? 'text-emerald-800 font-bold' : ''}>1. Terapi</span>
@@ -357,12 +357,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                         </span>
                       </div>
                       <p className="text-xs text-stone-500 line-clamp-1 mt-0.5">{therapy.tagline}</p>
-                      {therapy.scheduleNote && (
-                        <p className="text-[11px] text-amber-700 font-medium mt-1 flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-amber-600" />
-                          <span>Sesi hanya tersedia pada hari <strong>Jumat & Sabtu</strong></span>
-                        </p>
-                      )}
                     </div>
                     <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
                       selectedTherapyId === therapy.id ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-stone-300'
@@ -423,7 +417,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
           )}
 
-          {/* STEP 3: Pilih Tanggal & Jam (Senin-Sabtu, 08.00 - 19.30) */}
+          {/* STEP 3: Pilih Tanggal & Jam */}
           {step === 3 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -435,27 +429,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 )}
               </div>
 
-              {/* Special Schedule Notice for Tai Chi / Yoga */}
-              {selectedTherapy?.scheduleNote && (
-                <div className="bg-amber-50 border border-amber-300/80 rounded-2xl p-3.5 flex items-start gap-2.5 text-amber-950 text-xs shadow-xs">
-                  <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="block font-bold text-amber-900">
-                      Jadwal Operasional Terapi {selectedTherapy.name}:
-                    </strong>
-                    <span>
-                      Pelaksanaan sesi terapi <strong>{selectedTherapy.name}</strong> hanya tersedia pada hari <strong>Jumat dan Sabtu</strong>. Mohon pastikan tanggal tindakan yang Anda pilih jatuh pada hari Jumat atau Sabtu.
-                    </span>
-                  </div>
-                </div>
-              )}
-
               {/* Date Input */}
               <div className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-2">
                 <label className="text-xs font-bold text-stone-700 block">
-                  {selectedTherapy?.allowedDays
-                    ? 'Pilih Tanggal Tindakan (Khusus Hari Jumat & Sabtu)'
-                    : 'Pilih Tanggal Tindakan (Senin – Sabtu)'}
+                  Pilih Tanggal Tindakan (Senin – Sabtu)
                 </label>
                 <div className="flex items-center gap-3">
                   <input
@@ -482,40 +459,15 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     </span>
                   </div>
                 </div>
-
-                {isSunday && (
-                  <p className="text-xs text-rose-600 font-medium">
-                    ⚠️ Layanan tutup pada hari Minggu. Mohon pilih hari operasional.
-                  </p>
-                )}
-
-                {selectedDate && !isSunday && isInvalidDayForTherapy && selectedTherapy && (
-                  <p className="text-xs text-rose-600 font-medium flex items-center gap-1">
-                    ⚠️ Hari <strong>{getIndonesianDayName(selectedDate)}</strong> tidak tersedia untuk sesi <strong>{selectedTherapy.name}</strong>. Silakan pilih hari <strong>Jumat</strong> atau <strong>Sabtu</strong>.
-                  </p>
-                )}
-
-                {selectedDate && !isSunday && !isInvalidDayForTherapy && (
-                  <p className="text-xs text-stone-600 flex items-center gap-1">
-                    <span className="text-emerald-600 font-bold">✓</span>
-                    <span>
-                      Tanggal terpilih: <strong className="text-stone-800">{formatIndonesianDate(selectedDate)}</strong> ({getIndonesianDayName(selectedDate)})
-                    </span>
-                  </p>
-                )}
               </div>
 
-              {/* Time Slots Grid (08:00 - 19:30 interval 30 mins) */}
+              {/* Time Slots Grid */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
                     <Clock className="w-4 h-4 text-emerald-700" />
                     Pilih Jam Tindakan (Interval 30 Menit, 08.00 – 19.30)
                   </label>
-                  <span className="text-[11px] text-stone-500">
-                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1"></span>Tersedia
-                    <span className="inline-block w-2 h-2 rounded-full bg-stone-300 ml-2 mr-1"></span>Penuh
-                  </span>
                 </div>
 
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-48 overflow-y-auto p-1 border border-stone-200 rounded-2xl bg-stone-50/60">
@@ -545,11 +497,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     );
                   })}
                 </div>
-                {selectedTimeSlot && !isSunday && (
-                  <p className="text-xs text-emerald-800 font-semibold mt-2 text-right">
-                    Jam terpilih: <span className="bg-emerald-100 px-2 py-0.5 rounded">{selectedTimeSlot} WIB</span>
-                  </p>
-                )}
               </div>
             </div>
           )}
@@ -577,19 +524,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
               <div>
                 <label className="text-xs font-bold text-stone-700 block mb-1">
-                  Nomor Pasien / Rekam Medis (Jika Ada)
-                </label>
-                <input
-                  type="text"
-                  value={patientNumber}
-                  onChange={(e) => setPatientNumber(e.target.value)}
-                  placeholder="Contoh: HNC-PASIEN-2026081"
-                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-stone-700 block mb-1">
                   Nomor Telepon / WhatsApp Aktif *
                 </label>
                 <div className="relative">
@@ -606,7 +540,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
               <div>
                 <label className="text-xs font-bold text-stone-700 block mb-1">
-                  Email Pasien (Untuk Notifikasi & Riwayat Akun)
+                  Email Pasien
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
@@ -622,7 +556,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
               <div>
                 <label className="text-xs font-bold text-stone-700 block mb-1">
-                  Catatan Tambahan / Keluhan Utama (Opsional)
+                  Catatan Tambahan (Opsional)
                 </label>
                 <div className="relative">
                   <FileText className="w-4 h-4 text-stone-400 absolute left-3.5 top-3" />
@@ -630,7 +564,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     rows={2}
-                    placeholder="Tuliskan keluhan seperti leher kaku, kelelahan, atau preferensi lainnya..."
+                    placeholder="Tuliskan keluhan atau preferensi lainnya..."
                     className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white resize-none"
                   />
                 </div>
@@ -686,16 +620,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     {selectedTimeSlot} WIB
                   </span>
                 </div>
-                {notes && (
-                  <div className="flex justify-between pt-1">
-                    <span className="text-stone-500">Catatan</span>
-                    <span className="text-stone-700 italic text-right max-w-[65%]">{notes}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900">
-                💡 <strong>Informasi:</strong> Harap hadir 10 menit sebelum waktu tindakan untuk pemeriksaan tanda-tanda vital awal oleh perawat.
               </div>
             </div>
           )}
@@ -718,7 +642,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
               {/* Booking Card */}
               <div className="bg-gradient-to-br from-emerald-900 to-teal-950 text-white rounded-3xl p-5 shadow-xl text-left relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-xl pointer-events-none" />
                 <div className="flex justify-between items-start border-b border-emerald-800/80 pb-3 mb-3">
                   <div>
                     <span className="text-[10px] text-emerald-300 font-semibold tracking-wider uppercase">
@@ -777,7 +700,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           )}
         </div>
 
-        {/* Footer Navigation Buttons (Steps 1 to 5) */}
+        {/* Footer Navigation Buttons */}
         {step <= 5 && (
           <div className="p-4 sm:p-5 border-t border-stone-100 bg-stone-50 rounded-b-3xl flex items-center justify-between gap-3">
             {step > 1 ? (
@@ -796,7 +719,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="text-stone-500 hover:text-stone-700 text-xs sm:text-sm font-medium px-3 py-2"
+                className="text-stone-500 hover:text-stone-700 text-xs sm:text-sm font-medium px-3 py-2 cursor-pointer"
               >
                 Batal
               </button>
