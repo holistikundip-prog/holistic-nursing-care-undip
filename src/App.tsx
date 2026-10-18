@@ -88,7 +88,19 @@ export default function App() {
         .order('created_at', { ascending: false });
 
       if (data && !error && data.length > 0) {
-        const mappedAppointments: Appointment[] = data.map((item: any, index: number) => ({
+        const mappedAppointments: Appointment[] = data.map((item: any, index: number) => {
+          // 1. Ambil tanggal dari Supabase
+          const rawDate = item.tanggal || (item.created_at ? item.created_at.split('T')[0] : new Date().toISOString().split('T')[0]);
+          
+          // 2. Hitung nama hari Indonesia secara otomatis berdasarkan tanggalnya
+          const calculatedDay = getIndonesianDayName(rawDate);
+
+          // 3. Rapikan format waktu agar tidak menjadi "09:00 WIB WIB"
+          let cleanTime = item.waktu || '09:00';
+          cleanTime = cleanTime.replace(/\s*WIB/gi, '').trim();
+          const formattedTimeSlot = `${cleanTime} WIB`;
+
+          return {
             id: item.id ? item.id.toString() : 'app-sp-' + index,
             bookingCode: item.kode_booking || item.booking_code || `HNC-2026-${Math.floor(1000 + Math.random() * 9000)}`,
             userId: item.user_id || 'user-guest',
@@ -100,13 +112,14 @@ export default function App() {
             therapyName: item.terapi || item.therapy_name || 'Layanan Holistik',
             locationId: 'undip-nursing',
             locationName: item.lokasi || 'Departemen Ilmu Keperawatan Universitas Diponegoro',
-            date: item.tanggal || (item.created_at ? item.created_at.split('T')[0] : new Date().toISOString().split('T')[0]),
-            dayName: item.hari || 'Senin',
-            timeSlot: item.waktu ? (item.waktu.includes('WIB') ? item.waktu : `${item.waktu} WIB`) : '09:00 WIB',
+            date: rawDate,
+            dayName: item.hari || calculatedDay,
+            timeSlot: formattedTimeSlot,
             notes: item.catatan || '',
             status: item.status || 'Terjadwal',
             createdAt: item.created_at || new Date().toISOString()
-          }));
+          };
+        });
 
         setAppointments(mappedAppointments);
 
