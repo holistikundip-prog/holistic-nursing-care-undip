@@ -233,8 +233,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             location_name: newAppointment.locationName,
             tanggal: newAppointment.date,
             hari: newAppointment.dayName,
-            waktu: cleanTime, // Gunakan jam bersih tanpa teks WIB
-            catatan: newAppointment.notes || '',
+            waktu: cleanTime,
             status: newAppointment.status || 'Terjadwal'
           }
         ]);
