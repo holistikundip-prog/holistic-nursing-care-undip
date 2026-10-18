@@ -217,20 +217,20 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       // 1. Simpan ke Supabase agar tersinkronisasi lintas HP & Browser
       try {
         await supabase.from('appointments').insert([
-          {
-            kode_booking: newAppointment.bookingCode,
-            nama_pasien: newAppointment.userName,
-            email: newAppointment.userEmail,
-            no_hp: newAppointment.userPhone,
-            terapi: newAppointment.therapyName,
-            lokasi: newAppointment.locationName,
-            tanggal: newAppointment.date,
-            hari: newAppointment.dayName,
-            waktu: newAppointment.timeSlot,
-            catatan: newAppointment.notes,
-            status: newAppointment.status
-          }
-        ]);
+  {
+    kode_booking: newAppointment.bookingCode,
+    nama_pasien: newAppointment.userName,
+    email: newAppointment.userEmail,
+    no_hp: newAppointment.userPhone, // <--- Menyimpan nomor HP asli pasien
+    terapi: newAppointment.therapyName,
+    lokasi: newAppointment.locationName,
+    tanggal: newAppointment.date,
+    hari: newAppointment.dayName,
+    waktu: newAppointment.timeSlot,
+    catatan: newAppointment.notes,
+    status: newAppointment.status
+  }
+]);
       } catch (spErr) {
         console.warn('Simpan ke Supabase info:', spErr);
       }
