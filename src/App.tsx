@@ -78,7 +78,7 @@ export default function App() {
   const [preSelectedTherapyForBooking, setPreSelectedTherapyForBooking] = useState<Therapy | null>(null);
   const [selectedAppointmentForDetail, setSelectedAppointmentForDetail] = useState<Appointment | null>(null);
 
- // Load appointments from Supabase on mount
+  // Load appointments from Supabase on mount
   useEffect(() => {
     const fetchAppointmentsFromSupabase = async () => {
       try {
@@ -117,6 +117,7 @@ export default function App() {
 
     fetchAppointmentsFromSupabase();
   }, []);
+
   // Nakes Mode authentication handlers
   const handleRequestNakesAccess = () => {
     const isAuthenticated = localStorage.getItem('hnc_nakes_authenticated') === 'true';
@@ -320,3 +321,245 @@ export default function App() {
   };
 
   const handleDeleteAppointment = (id: string) => {
+    const updated = appointments.filter((app) => app.id !== id);
+    handleAppointmentsChange(updated);
+    if (selectedAppointmentForDetail && selectedAppointmentForDetail.id === id) {
+      setSelectedAppointmentForDetail(null);
+    }
+  };
+
+  const handleAddTherapy = (newTherapy: Therapy) => {
+    const updated = [newTherapy, ...therapies];
+    handleTherapiesChange(updated);
+  };
+
+  const handleDeleteTherapy = (id: string) => {
+    const updated = therapies.filter((t) => t.id !== id);
+    handleTherapiesChange(updated);
+  };
+
+  const handleAddVideo = (newVideo: Video) => {
+    const updated = [newVideo, ...videos];
+    handleVideosChange(updated);
+  };
+
+  const handleDeleteVideo = (id: string) => {
+    const updated = videos.filter((v) => v.id !== id);
+    handleVideosChange(updated);
+  };
+
+  const handleAddProgressNote = (newNote: ClinicalProgressNote) => {
+    const updated = [newNote, ...progressNotes];
+    setProgressNotes(updated);
+    saveProgressNotes(updated);
+  };
+
+  const handleUpdateProgressNote = (updatedNote: ClinicalProgressNote) => {
+    const updated = progressNotes.map((n) => (n.id === updatedNote.id ? updatedNote : n));
+    setProgressNotes(updated);
+    saveProgressNotes(updated);
+  };
+
+  const handleDeleteProgressNote = (id: string) => {
+    const updated = progressNotes.filter((n) => n.id !== id);
+    setProgressNotes(updated);
+    saveProgressNotes(updated);
+  };
+
+  const activeAppointmentsCount = useMemo(() => {
+    const list = isAdmin ? appointments : filterUserAppointments(appointments, user);
+    return list.filter(
+      (a) => a.status === 'Terjadwal' || a.status === 'Menunggu'
+    ).length;
+  }, [appointments, isAdmin, user]);
+
+  return (
+    <div className="min-h-screen bg-stone-100 flex flex-col font-sans selection:bg-emerald-200 selection:text-emerald-900 text-stone-800">
+      <Navbar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onOpenSafety={() => setShowSafetyModal(true)}
+        isAdmin={isAdmin}
+        onRequestNakesAccess={handleRequestNakesAccess}
+        onExitNakesMode={handleExitNakesMode}
+        pendingAppointmentsCount={activeAppointmentsCount}
+        currentUser={user}
+        onOpenPatientAuth={() => setShowPatientAuthModal(true)}
+      />
+
+      <main className="flex-1 max-w-5xl w-full mx-auto px-3.5 sm:px-6 py-6 pb-24 md:pb-20">
+        {activeTab === 'home' && (
+          <HomeView
+            therapies={therapies}
+            onOpenDetail={(th) => setSelectedTherapyForDetail(th)}
+            onOpenBooking={handleOpenBooking}
+            setActiveTab={setActiveTab}
+            onOpenSafety={() => setShowSafetyModal(true)}
+            upcomingAppointments={filterUserAppointments(appointments, user)}
+          />
+        )}
+
+        {activeTab === 'therapies' && (
+          <TherapyListView
+            therapies={therapies}
+            onOpenDetail={(th) => setSelectedTherapyForDetail(th)}
+            onOpenBooking={(th) => handleOpenBooking(th)}
+          />
+        )}
+
+        {activeTab === 'videos' && (
+          <VideoListView
+            videos={videos}
+            onSelectVideo={(vid) => setSelectedVideoForPlayer(vid)}
+          />
+        )}
+
+        {activeTab === 'appointments' && (
+          <MyAppointmentsView
+            appointments={appointments}
+            currentUser={user}
+            onOpenBooking={() => handleOpenBooking()}
+            onViewDetail={(app) => setSelectedAppointmentForDetail(app)}
+            onCancelAppointment={handleCancelAppointment}
+            onOpenPatientAuth={() => setShowPatientAuthModal(true)}
+          />
+        )}
+
+        {activeTab === 'profile' && (
+          <ProfileView
+            user={user}
+            onUpdateUser={handleUserChange}
+            appointments={appointments}
+            progressNotes={progressNotes}
+            setActiveTab={setActiveTab}
+            onOpenSafety={() => setShowSafetyModal(true)}
+            isAdmin={isAdmin}
+            onRequestNakesAccess={handleRequestNakesAccess}
+            onExitNakesMode={handleExitNakesMode}
+            onOpenPatientAuth={(reason) => {
+              if (reason) setPatientAuthPromptReason(reason);
+              setShowPatientAuthModal(true);
+            }}
+            onLogoutPatient={handlePatientLogout}
+          />
+        )}
+
+        {activeTab === 'admin' && (
+          <AdminDashboardView
+            appointments={appointments}
+            therapies={therapies}
+            videos={videos}
+            progressNotes={progressNotes}
+            googleUser={googleUser}
+            accessToken={accessToken}
+            onGoogleAuthSuccess={handleGoogleAuthSuccess}
+            onGoogleLogout={handleGoogleLogout}
+            onExitNakesMode={handleExitNakesMode}
+            onUpdateAppointmentStatus={handleUpdateAppointmentStatus}
+            onDeleteAppointment={handleDeleteAppointment}
+            onAddTherapy={handleAddTherapy}
+            onDeleteTherapy={handleDeleteTherapy}
+            onAddVideo={handleAddVideo}
+            onDeleteVideo={handleDeleteVideo}
+            onAddProgressNote={handleAddProgressNote}
+            onUpdateProgressNote={handleUpdateProgressNote}
+            onDeleteProgressNote={handleDeleteProgressNote}
+          />
+        )}
+      </main>
+
+      <BottomNav
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        appointmentsCount={activeAppointmentsCount}
+        isAdmin={isAdmin}
+      />
+
+      {/* Patient Auth Modal */}
+      <PatientAuthModal
+        isOpen={showPatientAuthModal}
+        onClose={() => {
+          setShowPatientAuthModal(false);
+          setPatientAuthPromptReason(null);
+          setPendingBookingTherapy(null);
+        }}
+        currentUser={user}
+        onSuccess={(updatedPatient) => {
+          handleUserChange(updatedPatient);
+        }}
+        onPatientAuthSuccess={(updatedPatient) => {
+          handleUserChange(updatedPatient);
+        }}
+        onGoogleAuthSuccess={handleGoogleAuthSuccess}
+        onLogout={handlePatientLogout}
+        authPromptReason={patientAuthPromptReason}
+      />
+
+      <NakesLoginModal
+        isOpen={showNakesLoginModal}
+        onClose={() => setShowNakesLoginModal(false)}
+        onLoginSuccess={handleNakesLoginSuccess}
+      />
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onClose={handleCloseOnboarding}
+      />
+
+      <SafetyModal
+        isOpen={showSafetyModal}
+        onClose={() => setShowSafetyModal(false)}
+      />
+
+      <TherapyDetailModal
+        therapy={selectedTherapyForDetail}
+        isOpen={!!selectedTherapyForDetail}
+        onClose={() => setSelectedTherapyForDetail(null)}
+        onSelectSchedule={(th) => {
+          setSelectedTherapyForDetail(null);
+          handleOpenBooking(th);
+        }}
+      />
+
+      <VideoPlayerModal
+        video={selectedVideoForPlayer}
+        isOpen={!!selectedVideoForPlayer}
+        onClose={() => setSelectedVideoForPlayer(null)}
+      />
+
+      <BookingModal
+        isOpen={showBookingModal}
+        onClose={() => {
+          setShowBookingModal(false);
+          setPreSelectedTherapyForBooking(null);
+        }}
+        therapies={therapies}
+        locations={locations}
+        preSelectedTherapy={preSelectedTherapyForBooking}
+        existingAppointments={appointments}
+        currentUser={user}
+        accessToken={accessToken}
+        googleUser={googleUser}
+        onAuthSuccess={handleGoogleAuthSuccess}
+        onBookingSuccess={handleBookingSuccess}
+        onGoToMyAppointments={() => {
+          setShowBookingModal(false);
+          setActiveTab('appointments');
+        }}
+        onRequestAuth={() => {
+          setPendingBookingTherapy(preSelectedTherapyForBooking || null);
+          setPatientAuthPromptReason('Silakan masuk (login) atau daftar akun pasien terlebih dahulu untuk melakukan reservasi.');
+          setShowPatientAuthModal(true);
+        }}
+      />
+
+      <AppointmentDetailModal
+        appointment={selectedAppointmentForDetail}
+        isOpen={!!selectedAppointmentForDetail}
+        onClose={() => setSelectedAppointmentForDetail(null)}
+        onCancelAppointment={handleCancelAppointment}
+        currentUser={user}
+        isAdmin={isAdmin}
+      />
+    </div>
+  );
+}
