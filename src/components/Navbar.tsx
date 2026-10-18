@@ -28,28 +28,42 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="sticky top-0 z-30 bg-emerald-900/95 backdrop-blur-md text-white border-b border-emerald-800/80 shadow-md">
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-        {/* App Logo & Name */}
+        {/* App Logo & Name dengan Logo UNDIP */}
         <button
           onClick={() => setActiveTab('home')}
-          className="flex items-center gap-3 text-left focus:outline-none group cursor-pointer"
+          className="flex items-center gap-2.5 text-left focus:outline-none group cursor-pointer"
         >
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white shadow-inner transform transition group-hover:scale-105">
-            <HeartHandshake className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold text-base sm:text-lg tracking-tight text-white">
-                HOLISTIC NURSING CARE
-              </span>
-              {isAdmin && (
-                <span className="bg-amber-400/90 text-stone-900 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">
-                  Nakes/Admin
-                </span>
-              )}
+          {/* Logo UNDIP */}
+          <img
+            src="https://upload.wikimedia.org/wikipedia/id/2/2d/Undip.png"
+            alt="Logo UNDIP"
+            className="h-8 sm:h-9 w-auto object-contain shrink-0 transform transition group-hover:scale-105"
+            referrerPolicy="no-referrer"
+          />
+
+          {/* Pemisah / Garis Pembatas Vertikal */}
+          <div className="h-6 w-[1px] bg-emerald-700/80 hidden sm:block" />
+
+          {/* Logo & Nama Aplikasi HNC */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center text-white shadow-inner transform transition group-hover:scale-105 shrink-0">
+              <HeartHandshake className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <p className="text-[11px] text-emerald-200/90 hidden sm:block leading-tight font-light">
-              Perawatan Holistik untuk Keseimbangan Tubuh dan Pikiran
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm sm:text-lg tracking-tight text-white leading-snug">
+                  HOLISTIC NURSING CARE
+                </span>
+                {isAdmin && (
+                  <span className="bg-amber-400/90 text-stone-900 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">
+                    Nakes/Admin
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-emerald-200/90 hidden sm:block leading-tight font-light">
+                Perawatan Holistik untuk Keseimbangan Tubuh dan Pikiran
+              </p>
+            </div>
           </div>
         </button>
 
