@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, Mail, Lock, User, AlertCircle, Trash2 } from 'lucide-react';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { auth } from '../firebaseConfig'; // Sesuaikan path config Anda
-
+import { supabase } from '../supabaseClient';
 interface PatientAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -41,7 +41,7 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
     return existingPatients.filter((p: any) => !p.isDeleted);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -84,20 +84,32 @@ export const PatientAuthModal: React.FC<PatientAuthModalProps> = ({
           throw new Error('Email sudah terdaftar. Silakan login.');
         }
 
-        const newPatient = {
-          id: Date.now().toString(),
-          name,
-          email,
-          password,
-          isDeleted: false,
-          createdAt: new Date().toISOString()
-        };
+   const newPatient = {
+      id: Date.now().toString(),
+      name,
+      email,
+      password,
+      isDeleted: false,
+      createdAt: new Date().toISOString()
+    };
 
-        const updatedPatients = [...existingPatients, newPatient];
-        localStorage.setItem('patients', JSON.stringify(updatedPatients));
+    // Simpan juga ke Supabase agar masuk ke dashboard Admin
+    await supabase.from('appointments').insert([
+      {
+        kode_booking: `BOOK-${Date.now()}`,
+        nama_pasien: name,
+        email: email,
+        status: 'Terjadwal',
+        tanggal: new Date().toLocaleDateString('id-ID'),
+        waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
 
-        onSuccess(newPatient);
-        handleClose();
+    const updatedPatients = [...existingPatients, newPatient];
+    localStorage.setItem('patients', JSON.stringify(updatedPatients));
+
+    onSuccess(newPatient);
+    handleClose();
       }
     } catch (err: any) {
       setError(err.message || 'Terjadi kesalahan. Silakan coba lagi.');
