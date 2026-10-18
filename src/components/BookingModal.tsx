@@ -233,7 +233,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             location_name: newAppointment.locationName,
             tanggal: newAppointment.date,
             hari: newAppointment.dayName,
-            waktu: newAppointment.timeSlot,
+            waktu: cleanTime, // Gunakan jam bersih tanpa teks WIB
             catatan: newAppointment.notes || '',
             status: newAppointment.status || 'Terjadwal'
           }
@@ -241,11 +241,13 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
         if (spErr) {
           console.error('Error dari Supabase:', spErr.message, spErr.details);
+          alert('Gagal simpan ke Supabase: ' + spErr.message);
         } else {
           console.log('BERHASIL TERSIMPAN PERMANEN DI SUPABASE!');
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error koneksi Supabase:', err);
+        alert('Koneksi Supabase error: ' + err.message);
       }
 
       // Jalankan handler sukses & pindah ke layar e-Tiket (Step 6)
